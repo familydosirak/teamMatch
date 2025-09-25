@@ -6,11 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>팀 매칭 & 점수 관리</title>
     <style>
-        .drop-target {
-            outline: 2px dashed #4da3ff;
-            outline-offset: 6px;
-        }
-
         :root {
             --bg: #0b0f14;
             --panel: #111826;
@@ -133,13 +128,6 @@
             color: var(--muted)
         }
 
-        .row {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            flex-wrap: wrap
-        }
-
         input[type="text"],
         input[type="number"] {
             background: #0a1220;
@@ -218,39 +206,6 @@
             align-items: center
         }
 
-        table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0 8px
-        }
-
-        thead th {
-            font-size: 12px;
-            color: #8fb1d6;
-            font-weight: 700;
-            text-align: left;
-            padding: 0 8px
-        }
-
-        tbody tr {
-            background: linear-gradient(180deg, #0b1422, #0a111c);
-            border: 1px solid #1c2b45
-        }
-
-        tbody tr td {
-            padding: 10px 8px
-        }
-
-        tbody tr td:first-child {
-            border-top-left-radius: 12px;
-            border-bottom-left-radius: 12px
-        }
-
-        tbody tr td:last-child {
-            border-top-right-radius: 12px;
-            border-bottom-right-radius: 12px
-        }
-
         .listbar {
             display: flex;
             gap: 8px;
@@ -269,7 +224,7 @@
             margin-top: 8px
         }
 
-        /* 고정 헤더 + 스크롤 바디 구조 */
+        /* 고정 헤더 + 스크롤 바디 구조 (로스터) */
         .rosterTable {
             border: 1px solid #1c2b45;
             border-radius: 12px;
@@ -290,8 +245,7 @@
             font-weight: 700;
             text-align: left;
             padding: 8px;
-            background: #0c1422;
-            /* 겹침 방지용 배경 */
+            background: #0c1422
         }
 
         .rscroll {
@@ -301,39 +255,62 @@
             padding: 6px;
         }
 
-        /* 바디 테이블 행/셀 스타일 (기존 tbody 스타일 유지) */
         .rbody tbody tr {
             background: linear-gradient(180deg, #0b1422, #0a111c);
-            border: 1px solid #1c2b45;
+            border: 1px solid #1c2b45
         }
 
         .rbody tbody tr td {
-            padding: 10px 8px;
+            padding: 10px 8px
         }
 
         .rbody tbody tr td:first-child {
             border-top-left-radius: 12px;
-            border-bottom-left-radius: 12px;
+            border-bottom-left-radius: 12px
         }
 
         .rbody tbody tr td:last-child {
             border-top-right-radius: 12px;
-            border-bottom-right-radius: 12px;
+            border-bottom-right-radius: 12px
         }
 
-        /* 입력칸이 헤더 밑으로 파고드는 현상 방지 */
         .rscroll input[type="number"],
         .rscroll input[type="text"] {
             background: #0a1220;
             border: 1px solid #233656;
             color: #e6eef8;
             border-radius: 10px;
-            padding: 9px 11px;
+            padding: 9px 11px
+        }
+
+        /* 드래그 드롭 하이라이트 + 쓰레기통 */
+        .drop-target {
+            outline: 2px dashed #4da3ff;
+            outline-offset: 6px;
+        }
+
+        #dropTrash {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        #dropTrash .bin {
+            width: 16px;
+            height: 16px;
+            display: inline-block;
+            background: #4da3ff22;
+            border: 1px solid #20304a;
+            border-radius: 4px;
+        }
+
+        .team ul {
+            min-height: 48px;
+            padding: 4px 0;
         }
 
 
-
-        @media (max-width: 980px) {
+        @media (max-width:980px) {
             .grid {
                 grid-template-columns: 1fr
             }
@@ -350,6 +327,9 @@
             <button class="btn ghost" id="btnToTeam1">선택 → 1팀</button>
             <button class="btn ghost" id="btnToTeam2">선택 → 2팀</button>
             <button class="btn ghost" id="btnRemoveFromTeams">선택한 인원을 팀에서 제거</button>
+            <div class="btn ghost" id="dropTrash" title="이곳에 드롭하면 팀에서 제거" style="border-style:dashed;">
+                <span class="bin"></span> 드롭 → 팀에서 제거
+            </div>
             <div class="muted">선택한 인원(짝수)으로 1:1 팀을 만들고, 평균 점수 차를 최소화하도록 섞습니다.</div>
         </div>
 
@@ -389,8 +369,8 @@
                         <button class="btn ghost" id="btnRemakeTeams" title="현재 멤버로 팀 다시 짜기">현재 멤버로 팀 다시 짜기</button>
                         <button class="btn ghost" id="btnClearTeams" title="팀 비우기">팀 비우기</button>
                     </div>
-                    <div class="hint">점수 방식: <b>고정</b>은 +/− 값으로, <b>Elo</b>는 팀 평균 레이팅으로 기대 승률(E) 계산하여
-                        <code>Δ = K × (S − E)</code>만큼 팀 전원에 적용됩니다.
+                    <div class="hint">점수 방식: <b>고정</b>은 +/− 값, <b>Elo</b>는 팀 평균 레이팅으로 기대 승률(E)을 구해
+                        <code>Δ = K × (S − E)</code>를 팀 전원에 적용.
                     </div>
                 </div>
             </div>
@@ -406,6 +386,8 @@
                         <input style="width:120px" id="scoreInput" type="number" placeholder="초기 점수" value="1000" />
                         <button class="btn" id="btnAdd">인원추가</button>
                     </div>
+
+                    <!-- 고정 헤더 + 스크롤 바디 -->
                     <div class="rosterTable">
                         <table class="rhead">
                             <thead>
@@ -422,9 +404,10 @@
                             </table>
                         </div>
                     </div>
+
                     <div class="listbar">
                         <button class="btn warn" id="btnDelete">인원삭제(선택)</button>
-                        <button class="btn" id="btnSave">현재 멤버목록 텍스트로 저장</button>
+                        <button class="btn" id="btnSave">텍스트로 저장</button>
                     </div>
                     <div class="listbar">
                         <input id="fileInput" type="file" accept=".txt,.json" />
@@ -439,11 +422,12 @@
     </div>
 
     <script>
-        // ======= 데이터 상태 =======
+        // ======= 상태키 =======
         const STORAGE_KEY = 'team_roster_v1';
         const WIN_BONUS_KEY = 'win_bonus_v1';
         const MODE_KEY = 'scoring_mode_v1';
         const ELO_K_KEY = 'elo_k_v1';
+
         /** @type {{id:string,name:string,score:number}[]} */
         let roster = [];
         let currentTeams = { team1: [], team2: [] }; // ids
@@ -464,6 +448,7 @@
             } catch (e) { console.warn(e); }
         }
 
+        // ======= DOM refs =======
         const rosterBody = document.getElementById('rosterBody');
         const checkAll = document.getElementById('checkAll');
         const nameInput = document.getElementById('nameInput');
@@ -473,18 +458,19 @@
         const eloKInput = document.getElementById('eloK');
         const fileInput = document.getElementById('fileInput');
 
-        rosterBody.addEventListener('dragstart', (e) => {
-            const row = e.target.closest('tr');
-            if (!row || !row.dataset.id) return;
-            e.dataTransfer.setData('text/plain', row.dataset.id);
-            e.dataTransfer.effectAllowed = 'move';
-        });
+        const team1UL = document.getElementById('team1');
+        const team2UL = document.getElementById('team2');
+        const team1Box = document.getElementById('team1Box');
+        const team2Box = document.getElementById('team2Box');
 
+        function escapeHtml(str = '') { return str.replace(/[&<>"']/g, s => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;" }[s])); }
+
+        // ======= 로스터 렌더 =======
         function renderRoster() {
             rosterBody.innerHTML = '';
             roster.forEach(person => {
                 const tr = document.createElement('tr');
-                tr.setAttribute('draggable', 'true');
+                tr.setAttribute('draggable', 'true');  // 드래그 가능
                 tr.dataset.id = person.id;
                 tr.innerHTML = `
                     <td><input type="checkbox" data-id="${person.id}" class="rowcheck"></td>
@@ -495,8 +481,104 @@
             });
         }
 
-        function escapeHtml(str = '') {
-            return str.replace(/[&<>"']/g, s => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;" }[s]));
+        // 로스터: dragstart (행 전체 드래그)
+        rosterBody.addEventListener('dragstart', (e) => {
+            const row = e.target.closest('tr');
+            if (!row || !row.dataset.id) return;
+            e.dataTransfer.setData('text/plain', row.dataset.id);
+            e.dataTransfer.effectAllowed = 'move';
+        });
+
+        // ======= 팀 렌더 =======
+        function renderTeams() {
+            const ul1 = team1UL, ul2 = team2UL;
+            ul1.innerHTML = ''; ul2.innerHTML = '';
+            const t1 = currentTeams.team1.map(id => roster.find(p => p.id === id)).filter(Boolean);
+            const t2 = currentTeams.team2.map(id => roster.find(p => p.id === id)).filter(Boolean);
+            const a1 = avg(t1.map(p => p.score));
+            const a2 = avg(t2.map(p => p.score));
+            document.getElementById('avg1').innerHTML = `평균 <span class="${a1 >= a2 ? 'good' : 'bad'}">${a1.toFixed(1)}</span>`;
+            document.getElementById('avg2').innerHTML = `평균 <span class="${a2 >= a1 ? 'good' : 'bad'}">${a2.toFixed(1)}</span>`;
+
+            t1.forEach(p => {
+                const li = document.createElement('li');
+                li.setAttribute('draggable', 'true');
+                li.dataset.id = p.id;
+                li.innerHTML = `<span class="chip">${escapeHtml(p.name)} <span class="score">(${p.score})</span></span>`;
+                li.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('text/plain', p.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                });
+                ul1.appendChild(li);
+            });
+            t2.forEach(p => {
+                const li = document.createElement('li');
+                li.setAttribute('draggable', 'true');
+                li.dataset.id = p.id;
+                li.innerHTML = `<span class="chip">${escapeHtml(p.name)} <span class="score">(${p.score})</span></span>`;
+                li.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('text/plain', p.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                });
+                ul2.appendChild(li);
+            });
+        }
+
+        // ======= 드롭 타겟 바인딩 =======
+        function bindDropTarget(ulEl, boxEl, teamNo) {
+            // 공통 핸들러
+            const onDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
+            const onDragEnter = () => boxEl.classList.add('drop-target');
+            const onDragLeave = (e) => { if (!boxEl.contains(e.relatedTarget)) boxEl.classList.remove('drop-target'); };
+            const onDrop = (e) => {
+                e.preventDefault(); boxEl.classList.remove('drop-target');
+                const id = e.dataTransfer.getData('text/plain');
+                if (!id) return;
+                addIdToTeam(teamNo, id);
+            };
+
+            // 1) UL에 바인딩 (리스트 위 드롭)
+            ulEl.addEventListener('dragover', onDragOver);
+            ulEl.addEventListener('dragenter', onDragEnter);
+            ulEl.addEventListener('dragleave', onDragLeave);
+            ulEl.addEventListener('drop', onDrop);
+
+            // 2) BOX에도 바인딩 (빈 영역/제목 바/테두리 위 드롭)
+            boxEl.addEventListener('dragover', onDragOver);
+            boxEl.addEventListener('dragenter', onDragEnter);
+            boxEl.addEventListener('dragleave', onDragLeave);
+            boxEl.addEventListener('drop', onDrop);
+        }
+        bindDropTarget(team1UL, team1Box, 1);
+        bindDropTarget(team2UL, team2Box, 2);
+
+        // 쓰레기통 드롭: 팀에서 제거
+        const dropTrash = document.getElementById('dropTrash');
+        if (dropTrash) {
+            dropTrash.addEventListener('dragover', (e) => { e.preventDefault(); dropTrash.classList.add('drop-target'); });
+            dropTrash.addEventListener('dragleave', () => dropTrash.classList.remove('drop-target'));
+            dropTrash.addEventListener('drop', (e) => {
+                e.preventDefault(); dropTrash.classList.remove('drop-target');
+                const id = e.dataTransfer.getData('text/plain');
+                if (!id) return;
+                currentTeams.team1 = currentTeams.team1.filter(x => x !== id);
+                currentTeams.team2 = currentTeams.team2.filter(x => x !== id);
+                renderTeams();
+            });
+        }
+
+        // ======= 공용: 한 명을 팀에 넣기 (반대편에서 제거) =======
+        function addIdToTeam(teamNo, id) {
+            if (!id) return;
+            const other = teamNo === 1 ? currentTeams.team2 : currentTeams.team1;
+            const target = teamNo === 1 ? currentTeams.team1 : currentTeams.team2;
+            const otherSet = new Set(other);
+            const targetSet = new Set(target);
+            if (otherSet.has(id)) otherSet.delete(id);
+            targetSet.add(id);
+            if (teamNo === 1) { currentTeams.team2 = Array.from(otherSet); currentTeams.team1 = Array.from(targetSet); }
+            else { currentTeams.team1 = Array.from(otherSet); currentTeams.team2 = Array.from(targetSet); }
+            renderTeams();
         }
 
         // ======= 이벤트: 인원 추가/삭제 =======
@@ -514,16 +596,17 @@
             if (!checks.length) { alert('삭제할 인원을 선택하세요.'); return; }
             const selected = checks.map(c => roster.find(p => p.id === c.dataset.id)).filter(Boolean);
             if (selected.length === 1) {
-                const ok = confirm(`정말로 "${selected[0].name}" 멤버를 삭제하시겠습니까?`);
-                if (!ok) return;
+                const ok = confirm(`정말로 "${selected[0].name}" 멤버를 삭제하시겠습니까?`); if (!ok) return;
             } else {
                 const names = selected.map(p => p.name).join(', ');
-                const ok = confirm(`정말로 다음 ${selected.length}명을 삭제하시겠습니까?\n${names}`);
-                if (!ok) return;
+                const ok = confirm(`정말로 다음 ${selected.length}명을 삭제하시겠습니까?\n${names}`); if (!ok) return;
             }
             const ids = new Set(selected.map(p => p.id));
             roster = roster.filter(p => !ids.has(p.id));
-            saveLocal(); renderRoster();
+            // 팀에서도 제거
+            currentTeams.team1 = currentTeams.team1.filter(id => !ids.has(id));
+            currentTeams.team2 = currentTeams.team2.filter(id => !ids.has(id));
+            saveLocal(); renderRoster(); renderTeams();
         });
 
         // 점수 인라인 수정
@@ -532,7 +615,7 @@
             if (t.classList.contains('cell-score')) {
                 const id = t.dataset.id; const v = Number(t.value || 0);
                 const person = roster.find(x => x.id === id); if (!person) return;
-                person.score = isFinite(v) ? v : person.score; saveLocal();
+                person.score = isFinite(v) ? v : person.score; saveLocal(); renderTeams(); // 팀 평균 업데이트
             }
         });
 
@@ -541,7 +624,7 @@
             const td = e.target.closest('.cell-name');
             if (!td) return; const id = td.dataset.id; const p = roster.find(x => x.id === id); if (!p) return;
             const newName = prompt('이름 수정', p.name);
-            if (newName != null) { p.name = newName.trim() || p.name; saveLocal(); renderRoster(); }
+            if (newName != null) { p.name = newName.trim() || p.name; saveLocal(); renderRoster(); renderTeams(); }
         });
 
         // 전체선택 체크박스
@@ -554,8 +637,7 @@
             const blob = new Blob([JSON.stringify(roster, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            const now = new Date();
-            const pad = n => String(n).padStart(2, '0');
+            const now = new Date(); const pad = n => String(n).padStart(2, '0');
             const filename = `member_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.txt`;
             a.href = url; a.download = filename; a.click();
             URL.revokeObjectURL(url);
@@ -567,11 +649,9 @@
             const reader = new FileReader();
             reader.onload = () => {
                 try {
-                    const text = String(reader.result || '');
-                    let data;
-                    if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
-                        data = JSON.parse(text);
-                    } else {
+                    const text = String(reader.result || ''); let data;
+                    if (text.trim().startsWith('[') || text.trim().startsWith('{')) data = JSON.parse(text);
+                    else {
                         data = text.split(/\r?\n/).map(line => {
                             if (!line.trim()) return null;
                             const [name, score] = line.split(',');
@@ -581,13 +661,18 @@
                     }
                     if (!Array.isArray(data)) data = [data];
                     const imported = data.map(item => ({ id: uid(), name: String(item.name || '').trim(), score: Number(item.score) || 0 })).filter(x => x.name);
-                    roster = imported; saveLocal(); renderRoster();
+                    roster = imported; // 교체
+                    // 팀에서도 없는 멤버 제거
+                    const validIds = new Set(roster.map(p => p.id));
+                    currentTeams.team1 = currentTeams.team1.filter(id => validIds.has(id));
+                    currentTeams.team2 = currentTeams.team2.filter(id => validIds.has(id));
+                    saveLocal(); renderRoster(); renderTeams();
                 } catch (err) { console.error(err); alert('불러오기 실패: 파일 형식을 확인하세요.'); }
             };
             reader.readAsText(f, 'utf-8');
         });
 
-        // ======= 팀 빌드 =======
+        // ======= 팀 자동 빌드 =======
         document.getElementById('btnMakeTeams').addEventListener('click', () => {
             const selected = [...document.querySelectorAll('.rowcheck:checked')].map(cb => cb.dataset.id);
             if (selected.length < 2 || selected.length % 2 !== 0) { alert('짝수 인원을 선택하세요. (현재 ' + selected.length + '명)'); return; }
@@ -600,74 +685,64 @@
             const n = players.length; const half = n / 2;
             const attempts = Math.min(8000, 500 * n);
             const idx = [...Array(n).keys()];
-            let best = null; let bestDiff = Infinity;
+            let best = null, bestDiff = Infinity;
             for (let i = 0; i < attempts; i++) {
                 shuffle(idx);
-                const t1Idx = idx.slice(0, half); const t2Idx = idx.slice(half, n);
-                const t1 = t1Idx.map(i => players[i]);
-                const t2 = t2Idx.map(i => players[i]);
-                const s1 = t1.reduce((a, b) => a + b.score, 0);
-                const s2 = t2.reduce((a, b) => a + b.score, 0);
+                const t1Idx = idx.slice(0, half), t2Idx = idx.slice(half, n);
+                const t1 = t1Idx.map(i => players[i]), t2 = t2Idx.map(i => players[i]);
+                const s1 = t1.reduce((a, b) => a + b.score, 0), s2 = t2.reduce((a, b) => a + b.score, 0);
                 const diff = Math.abs(s1 - s2);
                 if (diff < bestDiff) { bestDiff = diff; best = { team1: t1.map(p => p.id), team2: t2.map(p => p.id) }; }
                 if (diff === 0) break;
             }
             return best || { team1: players.slice(0, half).map(p => p.id), team2: players.slice(half).map(p => p.id) };
         }
-
         function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0;[a[i], a[j]] = [a[j], a[i]]; } }
 
-        function renderTeams() {
-            const ul1 = document.getElementById('team1');
-            const ul2 = document.getElementById('team2');
-            ul1.innerHTML = ''; ul2.innerHTML = '';
-            const t1 = currentTeams.team1.map(id => roster.find(p => p.id === id)).filter(Boolean);
-            const t2 = currentTeams.team2.map(id => roster.find(p => p.id === id)).filter(Boolean);
-            const a1 = avg(t1.map(p => p.score));
-            const a2 = avg(t2.map(p => p.score));
-            document.getElementById('avg1').innerHTML = `평균 <span class="${a1 >= a2 ? 'good' : 'bad'}">${a1.toFixed(1)}</span>`;
-            document.getElementById('avg2').innerHTML = `평균 <span class="${a2 >= a1 ? 'good' : 'bad'}">${a2.toFixed(1)}</span>`;
-            t1.forEach(p => {
-                const li = document.createElement('li');
-                li.innerHTML = `<span class="chip">${escapeHtml(p.name)} <span class="score">(${p.score})</span></span>`;
-                ul1.appendChild(li);
-            });
-            t2.forEach(p => {
-                const li = document.createElement('li');
-                li.innerHTML = `<span class="chip">${escapeHtml(p.name)} <span class="score">(${p.score})</span></span>`;
-                ul2.appendChild(li);
-            });
-        }
-
+        // 팀 비우기
         document.getElementById('btnClearTeams').addEventListener('click', () => {
             currentTeams = { team1: [], team2: [] };
-            document.getElementById('team1').innerHTML = '';
-            document.getElementById('team2').innerHTML = '';
+            renderTeams();
             document.getElementById('avg1').textContent = '평균 0';
             document.getElementById('avg2').textContent = '평균 0';
         });
 
-        // ======= 승패 반영 (고정 / Elo) =======
-        document.getElementById('btnWin1').addEventListener('click', () => applyResult(1));
-        document.getElementById('btnWin2').addEventListener('click', () => applyResult(2));
-
         // 현재 멤버로 팀 다시 짜기
         document.getElementById('btnRemakeTeams').addEventListener('click', () => {
-            const ids1 = currentTeams.team1 || [];
-            const ids2 = currentTeams.team2 || [];
+            const ids1 = currentTeams.team1 || [], ids2 = currentTeams.team2 || [];
             const allIds = [...ids1, ...ids2];
             if (allIds.length < 2 || allIds.length % 2 !== 0) {
-                alert('먼저 짝수 인원으로 팀을 만들어주세요. (현재 ' + allIds.length + '명)');
-                return;
+                alert('먼저 짝수 인원으로 팀을 만들어주세요. (현재 ' + allIds.length + '명)'); return;
             }
             const players = allIds.map(id => roster.find(p => p.id === id)).filter(Boolean);
-            if (players.length !== allIds.length) {
-                alert('일부 멤버가 목록에서 사라졌습니다. 다시 선택해서 팀을 만들어주세요.');
-                return;
-            }
+            if (players.length !== allIds.length) { alert('일부 멤버가 목록에서 사라졌습니다. 다시 선택해서 팀을 만들어주세요.'); return; }
             currentTeams = buildBalancedTeams(players);
             renderTeams();
         });
+
+        // 선택 → 팀 배치 버튼
+        document.getElementById('btnToTeam1').addEventListener('click', () => addSelectedToTeam(1));
+        document.getElementById('btnToTeam2').addEventListener('click', () => addSelectedToTeam(2));
+        document.getElementById('btnRemoveFromTeams').addEventListener('click', removeSelectedFromTeams);
+
+        function addSelectedToTeam(teamNo) {
+            const checks = [...document.querySelectorAll('.rowcheck:checked')];
+            if (!checks.length) { alert('팀에 넣을 인원을 체크하세요.'); return; }
+            const ids = checks.map(c => c.dataset.id);
+            ids.forEach(id => addIdToTeam(teamNo, id));
+        }
+        function removeSelectedFromTeams() {
+            const checks = [...document.querySelectorAll('.rowcheck:checked')];
+            if (!checks.length) { alert('팀에서 제거할 인원을 체크하세요.'); return; }
+            const ids = new Set(checks.map(c => c.dataset.id));
+            currentTeams.team1 = currentTeams.team1.filter(id => !ids.has(id));
+            currentTeams.team2 = currentTeams.team2.filter(id => !ids.has(id));
+            renderTeams();
+        }
+
+        // ======= 승패 반영 (고정 / Elo) =======
+        document.getElementById('btnWin1').addEventListener('click', () => applyResult(1));
+        document.getElementById('btnWin2').addEventListener('click', () => applyResult(2));
 
         function applyResult(winTeam) {
             const ids1 = new Set(currentTeams.team1);
@@ -679,20 +754,16 @@
 
             const mode = (scoringModeSel && scoringModeSel.value) || 'fixed';
             if (mode === 'elo') {
-                // Elo 팀전: 팀 평균 레이팅으로 기대값 계산 후 동일 Δ를 팀 전원에 적용
                 const R1 = avg(team1Players.map(p => p.score));
                 const R2 = avg(team2Players.map(p => p.score));
                 const E1 = 1 / (1 + Math.pow(10, (R2 - R1) / 400));
                 const E2 = 1 - E1;
                 const K = Math.round(Number(eloKInput && eloKInput.value ? eloKInput.value : 32)) || 32;
-                const S1 = (winTeam === 1 ? 1 : 0);
-                const S2 = (winTeam === 2 ? 1 : 0);
-                const delta1 = K * (S1 - E1);
-                const delta2 = K * (S2 - E2);
+                const S1 = (winTeam === 1 ? 1 : 0), S2 = (winTeam === 2 ? 1 : 0);
+                const delta1 = K * (S1 - E1), delta2 = K * (S2 - E2);
                 team1Players.forEach(p => { p.score = Math.round(p.score + delta1); p.score = clamp(p.score, -9999, 9999); });
                 team2Players.forEach(p => { p.score = Math.round(p.score + delta2); p.score = clamp(p.score, -9999, 9999); });
             } else {
-                // 고정 가산/감산
                 const delta = Math.round(Number(winBonusInput && winBonusInput.value ? winBonusInput.value : 10)) || 10;
                 roster.forEach(p => {
                     if (ids1.has(p.id)) p.score += (winTeam === 1 ? delta : -delta);
@@ -705,92 +776,43 @@
             saveLocal(); renderRoster(); renderTeams();
         }
 
-        document.getElementById('btnToTeam1').addEventListener('click', () => addSelectedToTeam(1));
-        document.getElementById('btnToTeam2').addEventListener('click', () => addSelectedToTeam(2));
-        document.getElementById('btnRemoveFromTeams').addEventListener('click', removeSelectedFromTeams);
-
-        function addSelectedToTeam(teamNo) {
-            const checks = [...document.querySelectorAll('.rowcheck:checked')];
-            if (!checks.length) { alert('팀에 넣을 인원을 체크하세요.'); return; }
-            const ids = checks.map(c => c.dataset.id);
-
-            // 중복 방지: 다른 팀에 있으면 제거하고, 대상 팀에 추가
-            const other = teamNo === 1 ? currentTeams.team2 : currentTeams.team1;
-            const target = teamNo === 1 ? currentTeams.team1 : currentTeams.team2;
-
-            // Set으로 빠르게 제거/추가
-            const otherSet = new Set(other);
-            const targetSet = new Set(target);
-
-            ids.forEach(id => {
-                if (otherSet.has(id)) otherSet.delete(id);  // 다른 팀에서 제거
-                targetSet.add(id);                         // 대상 팀에 추가
-            });
-
-            // 배열로 반영
-            if (teamNo === 1) {
-                currentTeams.team2 = Array.from(otherSet);
-                currentTeams.team1 = Array.from(targetSet);
-            } else {
-                currentTeams.team1 = Array.from(otherSet);
-                currentTeams.team2 = Array.from(targetSet);
-            }
-
-            renderTeams();
-        }
-
-        function removeSelectedFromTeams() {
-            const checks = [...document.querySelectorAll('.rowcheck:checked')];
-            if (!checks.length) { alert('팀에서 제거할 인원을 체크하세요.'); return; }
-            const ids = new Set(checks.map(c => c.dataset.id));
-
-            currentTeams.team1 = currentTeams.team1.filter(id => !ids.has(id));
-            currentTeams.team2 = currentTeams.team2.filter(id => !ids.has(id));
-
-            renderTeams();
-        }
-
         // ======= 초기화 =======
-        loadLocal();
+        function initPrefs() {
+            try {
+                const savedBonus = localStorage.getItem(WIN_BONUS_KEY);
+                if (savedBonus && winBonusInput) winBonusInput.value = String(Math.round(Number(savedBonus) || 10));
+            } catch (_) { }
+            if (winBonusInput) {
+                winBonusInput.addEventListener('change', () => {
+                    const v = Math.round(Number(winBonusInput.value) || 10);
+                    winBonusInput.value = String(v);
+                    try { localStorage.setItem(WIN_BONUS_KEY, String(v)); } catch (_) { }
+                });
+            }
+            try {
+                const savedMode = localStorage.getItem(MODE_KEY);
+                if (savedMode && scoringModeSel) scoringModeSel.value = savedMode;
+                const savedK = localStorage.getItem(ELO_K_KEY);
+                if (savedK && eloKInput) eloKInput.value = String(Math.round(Number(savedK) || 32));
+            } catch (_) { }
+            if (scoringModeSel) {
+                scoringModeSel.addEventListener('change', () => {
+                    try { localStorage.setItem(MODE_KEY, scoringModeSel.value); } catch (_) { }
+                });
+            }
+            if (eloKInput) {
+                eloKInput.addEventListener('change', () => {
+                    const v = Math.round(Number(eloKInput.value) || 32);
+                    eloKInput.value = String(v);
+                    try { localStorage.setItem(ELO_K_KEY, String(v)); } catch (_) { }
+                });
+            }
+        }
 
-        // 초기 UI 상태 로드 (보상/모드/K)
-        try {
-            const savedBonus = localStorage.getItem(WIN_BONUS_KEY);
-            if (savedBonus && winBonusInput) winBonusInput.value = String(Math.round(Number(savedBonus) || 10));
-        } catch (_) { }
-        if (winBonusInput) {
-            winBonusInput.addEventListener('change', () => {
-                const v = Math.round(Number(winBonusInput.value) || 10);
-                winBonusInput.value = String(v);
-                try { localStorage.setItem(WIN_BONUS_KEY, String(v)); } catch (_) { }
-            });
-        }
-        try {
-            const savedMode = localStorage.getItem(MODE_KEY);
-            if (savedMode && scoringModeSel) scoringModeSel.value = savedMode;
-            const savedK = localStorage.getItem(ELO_K_KEY);
-            if (savedK && eloKInput) eloKInput.value = String(Math.round(Number(savedK) || 32));
-        } catch (_) { }
-        if (scoringModeSel) {
-            scoringModeSel.addEventListener('change', () => {
-                try { localStorage.setItem(MODE_KEY, scoringModeSel.value); } catch (_) { }
-            });
-        }
-        if (eloKInput) {
-            eloKInput.addEventListener('change', () => {
-                const v = Math.round(Number(eloKInput.value) || 32);
-                eloKInput.value = String(v);
-                try { localStorage.setItem(ELO_K_KEY, String(v)); } catch (_) { }
-            });
-        }
-
-        // 초기 샘플 (비워둬도 동작, 원하면 아래 예시 주석 해제)
-        if (roster.length === 0) {
-            // const sample = ['김민수','박지현','이서준','최유진','정호진','한지민','서윤아','오준혁','장도윤','윤세아'];
-            // roster = sample.map(n=>({id:uid(), name:n, score:1000}));
-            // saveLocal();
-        }
-        renderRoster();
+        loadLocal(); initPrefs();
+        // 샘플 자동 생성은 비활성(원하면 아래 주석 해제)
+        // if(roster.length===0){ roster=['김민수','박지현','이서준','최유진','정호진','한지민','서윤아','오준혁','장도윤','윤세아'].map(n=>({id:uid(), name:n, score:1000})); saveLocal(); }
+        renderRoster(); renderTeams();
     </script>
 </body>
 
