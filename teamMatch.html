@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>팀 매칭 & 점수 관리</title>
+    <style>
+        .drop-target {
+            outline: 2px dashed #4da3ff;
+            outline-offset: 6px;
+        }
+
+        :root {
+            --bg: #0b0f14;
+            --panel: #111826;
+            --muted: #8aa0b8;
+            --text: #e6eef8;
+            --acc: #4da3ff;
+            --acc2: #22c55e;
+            --warn: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        body {
+            margin: 0;
+            font-family: Inter, Pretendard, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Arial, sans-serif;
+            background: linear-gradient(180deg, #09111a, #0b0f14 30%, #0f172a);
+            color: var(--text)
+        }
+
+        .wrap {
+            max-width: 1100px;
+            margin: 28px auto;
+            padding: 20px
+        }
+
+        h1 {
+            font-size: 22px;
+            margin: 0 0 14px;
+            letter-spacing: .2px;
+            display: flex;
+            gap: 10px;
+            align-items: center
+        }
+
+        .bar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 14px
+        }
+
+        .btn {
+            border: none;
+            border-radius: 12px;
+            padding: 10px 14px;
+            font-weight: 600;
+            background: #1e293b;
+            color: #dbe7f8;
+            cursor: pointer;
+            transition: .15s
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(77, 163, 255, .15)
+        }
+
+        .btn.primary {
+            background: var(--acc);
+            color: #031427
+        }
+
+        .btn.success {
+            background: var(--acc2);
+            color: #06220f
+        }
+
+        .btn.warn {
+            background: var(--warn)
+        }
+
+        .btn.ghost {
+            background: #0b1220;
+            color: #9db7d9;
+            border: 1px solid #20304a
+        }
+
+        .btn.small {
+            padding: 6px 10px;
+            border-radius: 10px
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1.1fr .9fr;
+            gap: 14px
+        }
+
+        .panel {
+            background: linear-gradient(180deg, #0d1626, #0c1320);
+            border: 1px solid #1c2b45;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, .25)
+        }
+
+        .panel .hd {
+            padding: 12px 14px;
+            border-bottom: 1px solid #1c2b45;
+            display: flex;
+            align-items: center;
+            justify-content: space-between
+        }
+
+        .panel .hd .title {
+            font-weight: 800;
+            font-size: 14px;
+            letter-spacing: .6px;
+            text-transform: uppercase;
+            color: #a9c3e6
+        }
+
+        .panel .bd {
+            padding: 14px
+        }
+
+        .muted {
+            color: var(--muted)
+        }
+
+        .row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap
+        }
+
+        input[type="text"],
+        input[type="number"] {
+            background: #0a1220;
+            border: 1px solid #233656;
+            color: #e6eef8;
+            border-radius: 10px;
+            padding: 9px 11px
+        }
+
+        input[type="file"] {
+            color: #9bb3cf
+        }
+
+        .teams {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px
+        }
+
+        .team {
+            border: 1px dashed #2a4168;
+            border-radius: 14px;
+            padding: 12px;
+            background: linear-gradient(180deg, #0c1626, #0c1422)
+        }
+
+        .team h3 {
+            margin: 0 0 8px;
+            font-size: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center
+        }
+
+        .team ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 6px
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: #0a1322;
+            border: 1px solid #1f2f4a;
+            padding: 8px 10px;
+            border-radius: 12px
+        }
+
+        .chip .score {
+            font-weight: 800;
+            color: #a7d1ff
+        }
+
+        .avg {
+            font-weight: 800
+        }
+
+        .avg .good {
+            color: var(--acc2)
+        }
+
+        .avg .bad {
+            color: #f59e0b
+        }
+
+        .winbar {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+            align-items: center
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 8px
+        }
+
+        thead th {
+            font-size: 12px;
+            color: #8fb1d6;
+            font-weight: 700;
+            text-align: left;
+            padding: 0 8px
+        }
+
+        tbody tr {
+            background: linear-gradient(180deg, #0b1422, #0a111c);
+            border: 1px solid #1c2b45
+        }
+
+        tbody tr td {
+            padding: 10px 8px
+        }
+
+        tbody tr td:first-child {
+            border-top-left-radius: 12px;
+            border-bottom-left-radius: 12px
+        }
+
+        tbody tr td:last-child {
+            border-top-right-radius: 12px;
+            border-bottom-right-radius: 12px
+        }
+
+        .listbar {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 10px
+        }
+
+        .grow {
+            flex: 1
+        }
+
+        .hint {
+            font-size: 12px;
+            color: #9ab5d7;
+            margin-top: 8px
+        }
+
+        /* 고정 헤더 + 스크롤 바디 구조 */
+        .rosterTable {
+            border: 1px solid #1c2b45;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .rhead,
+        .rbody {
+            width: 100%;
+            table-layout: fixed;
+            border-collapse: separate;
+            border-spacing: 0 8px;
+        }
+
+        .rhead thead th {
+            font-size: 12px;
+            color: #8fb1d6;
+            font-weight: 700;
+            text-align: left;
+            padding: 8px;
+            background: #0c1422;
+            /* 겹침 방지용 배경 */
+        }
+
+        .rscroll {
+            max-height: 440px;
+            overflow: auto;
+            background: transparent;
+            padding: 6px;
+        }
+
+        /* 바디 테이블 행/셀 스타일 (기존 tbody 스타일 유지) */
+        .rbody tbody tr {
+            background: linear-gradient(180deg, #0b1422, #0a111c);
+            border: 1px solid #1c2b45;
+        }
+
+        .rbody tbody tr td {
+            padding: 10px 8px;
+        }
+
+        .rbody tbody tr td:first-child {
+            border-top-left-radius: 12px;
+            border-bottom-left-radius: 12px;
+        }
+
+        .rbody tbody tr td:last-child {
+            border-top-right-radius: 12px;
+            border-bottom-right-radius: 12px;
+        }
+
+        /* 입력칸이 헤더 밑으로 파고드는 현상 방지 */
+        .rscroll input[type="number"],
+        .rscroll input[type="text"] {
+            background: #0a1220;
+            border: 1px solid #233656;
+            color: #e6eef8;
+            border-radius: 10px;
+            padding: 9px 11px;
+        }
+
+
+
+        @media (max-width: 980px) {
+            .grid {
+                grid-template-columns: 1fr
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+        <h1>팀 매칭 & 점수 관리</h1>
+
+        <div class="bar">
+            <button class="btn primary" id="btnMakeTeams">팀 짜기 (선택 인원 짝수)</button>
+            <button class="btn ghost" id="btnToTeam1">선택 → 1팀</button>
+            <button class="btn ghost" id="btnToTeam2">선택 → 2팀</button>
+            <button class="btn ghost" id="btnRemoveFromTeams">선택한 인원을 팀에서 제거</button>
+            <div class="muted">선택한 인원(짝수)으로 1:1 팀을 만들고, 평균 점수 차를 최소화하도록 섞습니다.</div>
+        </div>
+
+        <div class="grid">
+            <!-- Left: Teams -->
+            <div class="panel">
+                <div class="hd">
+                    <div class="title">Teams</div>
+                </div>
+                <div class="bd">
+                    <div class="teams">
+                        <div class="team" id="team1Box">
+                            <h3>1팀 <span class="avg" id="avg1">평균 0</span></h3>
+                            <ul id="team1"></ul>
+                        </div>
+                        <div class="team" id="team2Box">
+                            <h3>2팀 <span class="avg" id="avg2">평균 0</span></h3>
+                            <ul id="team2"></ul>
+                        </div>
+                    </div>
+                    <div class="winbar">
+                        <label class="muted" style="display:flex;align-items:center;gap:6px">점수 방식
+                            <select id="scoringMode"
+                                style="height:32px;background:#0a1220;color:#e6eef8;border:1px solid #233656;border-radius:8px;padding:4px 8px">
+                                <option value="fixed">고정 가산/감산</option>
+                                <option value="elo">Elo 레이팅</option>
+                            </select>
+                        </label>
+                        <label class="muted" style="display:flex;align-items:center;gap:6px">승리 보상
+                            <input id="winBonusInput" type="number" value="10" style="width:80px" />
+                        </label>
+                        <label class="muted" style="display:flex;align-items:center;gap:6px">Elo K
+                            <input id="eloK" type="number" value="32" style="width:80px" />
+                        </label>
+                        <button class="btn success" id="btnWin1" title="1팀 승">1팀 승리</button>
+                        <button class="btn success" id="btnWin2" title="2팀 승">2팀 승리</button>
+                        <button class="btn ghost" id="btnRemakeTeams" title="현재 멤버로 팀 다시 짜기">현재 멤버로 팀 다시 짜기</button>
+                        <button class="btn ghost" id="btnClearTeams" title="팀 비우기">팀 비우기</button>
+                    </div>
+                    <div class="hint">점수 방식: <b>고정</b>은 +/− 값으로, <b>Elo</b>는 팀 평균 레이팅으로 기대 승률(E) 계산하여
+                        <code>Δ = K × (S − E)</code>만큼 팀 전원에 적용됩니다.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Roster + IO -->
+            <div class="panel">
+                <div class="hd">
+                    <div class="title">인원 관리</div>
+                </div>
+                <div class="bd">
+                    <div class="listbar">
+                        <input class="grow" id="nameInput" type="text" placeholder="이름" />
+                        <input style="width:120px" id="scoreInput" type="number" placeholder="초기 점수" value="1000" />
+                        <button class="btn" id="btnAdd">인원추가</button>
+                    </div>
+                    <div class="rosterTable">
+                        <table class="rhead">
+                            <thead>
+                                <tr>
+                                    <th style="width:44px"><input type="checkbox" id="checkAll"></th>
+                                    <th>이름</th>
+                                    <th style="width:120px">점수</th>
+                                </tr>
+                            </thead>
+                        </table>
+                        <div class="rscroll">
+                            <table class="rbody">
+                                <tbody id="rosterBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="listbar">
+                        <button class="btn warn" id="btnDelete">인원삭제(선택)</button>
+                        <button class="btn" id="btnSave">현재 멤버목록 텍스트로 저장</button>
+                    </div>
+                    <div class="listbar">
+                        <input id="fileInput" type="file" accept=".txt,.json" />
+                        <button class="btn" id="btnLoad">불러오기</button>
+                        <span class="muted">JSON 또는 "이름,점수" 줄 형식 지원</span>
+                    </div>
+
+                    <div class="hint">Tip: 이름 더블클릭으로 수정, 점수는 직접 입력 가능. 변경은 자동 저장(LocalStorage).</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ======= 데이터 상태 =======
+        const STORAGE_KEY = 'team_roster_v1';
+        const WIN_BONUS_KEY = 'win_bonus_v1';
+        const MODE_KEY = 'scoring_mode_v1';
+        const ELO_K_KEY = 'elo_k_v1';
+        /** @type {{id:string,name:string,score:number}[]} */
+        let roster = [];
+        let currentTeams = { team1: [], team2: [] }; // ids
+
+        // ======= 유틸 =======
+        const uid = () => Math.random().toString(36).slice(2, 10);
+        const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+        const avg = arr => arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+
+        function saveLocal() { localStorage.setItem(STORAGE_KEY, JSON.stringify(roster)); }
+        function loadLocal() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (raw) {
+                    const data = JSON.parse(raw);
+                    if (Array.isArray(data)) roster = data.filter(x => x && x.name);
+                }
+            } catch (e) { console.warn(e); }
+        }
+
+        const rosterBody = document.getElementById('rosterBody');
+        const checkAll = document.getElementById('checkAll');
+        const nameInput = document.getElementById('nameInput');
+        const scoreInput = document.getElementById('scoreInput');
+        const winBonusInput = document.getElementById('winBonusInput');
+        const scoringModeSel = document.getElementById('scoringMode');
+        const eloKInput = document.getElementById('eloK');
+        const fileInput = document.getElementById('fileInput');
+
+        rosterBody.addEventListener('dragstart', (e) => {
+            const row = e.target.closest('tr');
+            if (!row || !row.dataset.id) return;
+            e.dataTransfer.setData('text/plain', row.dataset.id);
+            e.dataTransfer.effectAllowed = 'move';
+        });
+
+        function renderRoster() {
+            rosterBody.innerHTML = '';
+            roster.forEach(person => {
+                const tr = document.createElement('tr');
+                tr.setAttribute('draggable', 'true');
+                tr.dataset.id = person.id;
+                tr.innerHTML = `
+                    <td><input type="checkbox" data-id="${person.id}" class="rowcheck"></td>
+                    <td class="cell-name" data-id="${person.id}" title="더블클릭으로 수정">${escapeHtml(person.name)}</td>
+                    <td><input data-id="${person.id}" class="cell-score" type="number" value="${person.score}" style="width:110px" /></td>
+                `;
+                rosterBody.appendChild(tr);
+            });
+        }
+
+        function escapeHtml(str = '') {
+            return str.replace(/[&<>"']/g, s => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;" }[s]));
+        }
+
+        // ======= 이벤트: 인원 추가/삭제 =======
+        document.getElementById('btnAdd').addEventListener('click', () => {
+            const name = (nameInput.value || '').trim();
+            const score = Number(scoreInput.value || 0);
+            if (!name) { alert('이름을 입력하세요.'); nameInput.focus(); return; }
+            roster.push({ id: uid(), name, score: isFinite(score) ? score : 0 });
+            saveLocal(); renderRoster();
+            nameInput.value = ''; nameInput.focus();
+        });
+
+        document.getElementById('btnDelete').addEventListener('click', () => {
+            const checks = [...document.querySelectorAll('.rowcheck:checked')];
+            if (!checks.length) { alert('삭제할 인원을 선택하세요.'); return; }
+            const selected = checks.map(c => roster.find(p => p.id === c.dataset.id)).filter(Boolean);
+            if (selected.length === 1) {
+                const ok = confirm(`정말로 "${selected[0].name}" 멤버를 삭제하시겠습니까?`);
+                if (!ok) return;
+            } else {
+                const names = selected.map(p => p.name).join(', ');
+                const ok = confirm(`정말로 다음 ${selected.length}명을 삭제하시겠습니까?\n${names}`);
+                if (!ok) return;
+            }
+            const ids = new Set(selected.map(p => p.id));
+            roster = roster.filter(p => !ids.has(p.id));
+            saveLocal(); renderRoster();
+        });
+
+        // 점수 인라인 수정
+        rosterBody.addEventListener('change', (e) => {
+            const t = e.target;
+            if (t.classList.contains('cell-score')) {
+                const id = t.dataset.id; const v = Number(t.value || 0);
+                const person = roster.find(x => x.id === id); if (!person) return;
+                person.score = isFinite(v) ? v : person.score; saveLocal();
+            }
+        });
+
+        // 이름 더블클릭 수정
+        rosterBody.addEventListener('dblclick', (e) => {
+            const td = e.target.closest('.cell-name');
+            if (!td) return; const id = td.dataset.id; const p = roster.find(x => x.id === id); if (!p) return;
+            const newName = prompt('이름 수정', p.name);
+            if (newName != null) { p.name = newName.trim() || p.name; saveLocal(); renderRoster(); }
+        });
+
+        // 전체선택 체크박스
+        checkAll.addEventListener('change', () => {
+            document.querySelectorAll('.rowcheck').forEach(cb => cb.checked = checkAll.checked);
+        });
+
+        // ======= 파일 저장/불러오기 =======
+        document.getElementById('btnSave').addEventListener('click', () => {
+            const blob = new Blob([JSON.stringify(roster, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const now = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            const filename = `member_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.txt`;
+            a.href = url; a.download = filename; a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        document.getElementById('btnLoad').addEventListener('click', () => {
+            const f = fileInput.files && fileInput.files[0];
+            if (!f) { alert('불러올 파일을 선택하세요.'); fileInput.click(); return; }
+            const reader = new FileReader();
+            reader.onload = () => {
+                try {
+                    const text = String(reader.result || '');
+                    let data;
+                    if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
+                        data = JSON.parse(text);
+                    } else {
+                        data = text.split(/\r?\n/).map(line => {
+                            if (!line.trim()) return null;
+                            const [name, score] = line.split(',');
+                            if (!name) return null;
+                            return { name: name.trim(), score: Number(score) || 0 };
+                        }).filter(Boolean);
+                    }
+                    if (!Array.isArray(data)) data = [data];
+                    const imported = data.map(item => ({ id: uid(), name: String(item.name || '').trim(), score: Number(item.score) || 0 })).filter(x => x.name);
+                    roster = imported; saveLocal(); renderRoster();
+                } catch (err) { console.error(err); alert('불러오기 실패: 파일 형식을 확인하세요.'); }
+            };
+            reader.readAsText(f, 'utf-8');
+        });
+
+        // ======= 팀 빌드 =======
+        document.getElementById('btnMakeTeams').addEventListener('click', () => {
+            const selected = [...document.querySelectorAll('.rowcheck:checked')].map(cb => cb.dataset.id);
+            if (selected.length < 2 || selected.length % 2 !== 0) { alert('짝수 인원을 선택하세요. (현재 ' + selected.length + '명)'); return; }
+            const players = selected.map(id => roster.find(p => p.id === id)).filter(Boolean);
+            currentTeams = buildBalancedTeams(players);
+            renderTeams();
+        });
+
+        function buildBalancedTeams(players) {
+            const n = players.length; const half = n / 2;
+            const attempts = Math.min(8000, 500 * n);
+            const idx = [...Array(n).keys()];
+            let best = null; let bestDiff = Infinity;
+            for (let i = 0; i < attempts; i++) {
+                shuffle(idx);
+                const t1Idx = idx.slice(0, half); const t2Idx = idx.slice(half, n);
+                const t1 = t1Idx.map(i => players[i]);
+                const t2 = t2Idx.map(i => players[i]);
+                const s1 = t1.reduce((a, b) => a + b.score, 0);
+                const s2 = t2.reduce((a, b) => a + b.score, 0);
+                const diff = Math.abs(s1 - s2);
+                if (diff < bestDiff) { bestDiff = diff; best = { team1: t1.map(p => p.id), team2: t2.map(p => p.id) }; }
+                if (diff === 0) break;
+            }
+            return best || { team1: players.slice(0, half).map(p => p.id), team2: players.slice(half).map(p => p.id) };
+        }
+
+        function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0;[a[i], a[j]] = [a[j], a[i]]; } }
+
+        function renderTeams() {
+            const ul1 = document.getElementById('team1');
+            const ul2 = document.getElementById('team2');
+            ul1.innerHTML = ''; ul2.innerHTML = '';
+            const t1 = currentTeams.team1.map(id => roster.find(p => p.id === id)).filter(Boolean);
+            const t2 = currentTeams.team2.map(id => roster.find(p => p.id === id)).filter(Boolean);
+            const a1 = avg(t1.map(p => p.score));
+            const a2 = avg(t2.map(p => p.score));
+            document.getElementById('avg1').innerHTML = `평균 <span class="${a1 >= a2 ? 'good' : 'bad'}">${a1.toFixed(1)}</span>`;
+            document.getElementById('avg2').innerHTML = `평균 <span class="${a2 >= a1 ? 'good' : 'bad'}">${a2.toFixed(1)}</span>`;
+            t1.forEach(p => {
+                const li = document.createElement('li');
+                li.innerHTML = `<span class="chip">${escapeHtml(p.name)} <span class="score">(${p.score})</span></span>`;
+                ul1.appendChild(li);
+            });
+            t2.forEach(p => {
+                const li = document.createElement('li');
+                li.innerHTML = `<span class="chip">${escapeHtml(p.name)} <span class="score">(${p.score})</span></span>`;
+                ul2.appendChild(li);
+            });
+        }
+
+        document.getElementById('btnClearTeams').addEventListener('click', () => {
+            currentTeams = { team1: [], team2: [] };
+            document.getElementById('team1').innerHTML = '';
+            document.getElementById('team2').innerHTML = '';
+            document.getElementById('avg1').textContent = '평균 0';
+            document.getElementById('avg2').textContent = '평균 0';
+        });
+
+        // ======= 승패 반영 (고정 / Elo) =======
+        document.getElementById('btnWin1').addEventListener('click', () => applyResult(1));
+        document.getElementById('btnWin2').addEventListener('click', () => applyResult(2));
+
+        // 현재 멤버로 팀 다시 짜기
+        document.getElementById('btnRemakeTeams').addEventListener('click', () => {
+            const ids1 = currentTeams.team1 || [];
+            const ids2 = currentTeams.team2 || [];
+            const allIds = [...ids1, ...ids2];
+            if (allIds.length < 2 || allIds.length % 2 !== 0) {
+                alert('먼저 짝수 인원으로 팀을 만들어주세요. (현재 ' + allIds.length + '명)');
+                return;
+            }
+            const players = allIds.map(id => roster.find(p => p.id === id)).filter(Boolean);
+            if (players.length !== allIds.length) {
+                alert('일부 멤버가 목록에서 사라졌습니다. 다시 선택해서 팀을 만들어주세요.');
+                return;
+            }
+            currentTeams = buildBalancedTeams(players);
+            renderTeams();
+        });
+
+        function applyResult(winTeam) {
+            const ids1 = new Set(currentTeams.team1);
+            const ids2 = new Set(currentTeams.team2);
+            if (ids1.size === 0 || ids2.size === 0 || ids1.size !== ids2.size) { alert('먼저 짝수 인원으로 팀을 만들어주세요.'); return; }
+
+            const team1Players = roster.filter(p => ids1.has(p.id));
+            const team2Players = roster.filter(p => ids2.has(p.id));
+
+            const mode = (scoringModeSel && scoringModeSel.value) || 'fixed';
+            if (mode === 'elo') {
+                // Elo 팀전: 팀 평균 레이팅으로 기대값 계산 후 동일 Δ를 팀 전원에 적용
+                const R1 = avg(team1Players.map(p => p.score));
+                const R2 = avg(team2Players.map(p => p.score));
+                const E1 = 1 / (1 + Math.pow(10, (R2 - R1) / 400));
+                const E2 = 1 - E1;
+                const K = Math.round(Number(eloKInput && eloKInput.value ? eloKInput.value : 32)) || 32;
+                const S1 = (winTeam === 1 ? 1 : 0);
+                const S2 = (winTeam === 2 ? 1 : 0);
+                const delta1 = K * (S1 - E1);
+                const delta2 = K * (S2 - E2);
+                team1Players.forEach(p => { p.score = Math.round(p.score + delta1); p.score = clamp(p.score, -9999, 9999); });
+                team2Players.forEach(p => { p.score = Math.round(p.score + delta2); p.score = clamp(p.score, -9999, 9999); });
+            } else {
+                // 고정 가산/감산
+                const delta = Math.round(Number(winBonusInput && winBonusInput.value ? winBonusInput.value : 10)) || 10;
+                roster.forEach(p => {
+                    if (ids1.has(p.id)) p.score += (winTeam === 1 ? delta : -delta);
+                    if (ids2.has(p.id)) p.score += (winTeam === 2 ? delta : -delta);
+                    p.score = Math.round(p.score);
+                    p.score = clamp(p.score, -9999, 9999);
+                });
+            }
+
+            saveLocal(); renderRoster(); renderTeams();
+        }
+
+        document.getElementById('btnToTeam1').addEventListener('click', () => addSelectedToTeam(1));
+        document.getElementById('btnToTeam2').addEventListener('click', () => addSelectedToTeam(2));
+        document.getElementById('btnRemoveFromTeams').addEventListener('click', removeSelectedFromTeams);
+
+        function addSelectedToTeam(teamNo) {
+            const checks = [...document.querySelectorAll('.rowcheck:checked')];
+            if (!checks.length) { alert('팀에 넣을 인원을 체크하세요.'); return; }
+            const ids = checks.map(c => c.dataset.id);
+
+            // 중복 방지: 다른 팀에 있으면 제거하고, 대상 팀에 추가
+            const other = teamNo === 1 ? currentTeams.team2 : currentTeams.team1;
+            const target = teamNo === 1 ? currentTeams.team1 : currentTeams.team2;
+
+            // Set으로 빠르게 제거/추가
+            const otherSet = new Set(other);
+            const targetSet = new Set(target);
+
+            ids.forEach(id => {
+                if (otherSet.has(id)) otherSet.delete(id);  // 다른 팀에서 제거
+                targetSet.add(id);                         // 대상 팀에 추가
+            });
+
+            // 배열로 반영
+            if (teamNo === 1) {
+                currentTeams.team2 = Array.from(otherSet);
+                currentTeams.team1 = Array.from(targetSet);
+            } else {
+                currentTeams.team1 = Array.from(otherSet);
+                currentTeams.team2 = Array.from(targetSet);
+            }
+
+            renderTeams();
+        }
+
+        function removeSelectedFromTeams() {
+            const checks = [...document.querySelectorAll('.rowcheck:checked')];
+            if (!checks.length) { alert('팀에서 제거할 인원을 체크하세요.'); return; }
+            const ids = new Set(checks.map(c => c.dataset.id));
+
+            currentTeams.team1 = currentTeams.team1.filter(id => !ids.has(id));
+            currentTeams.team2 = currentTeams.team2.filter(id => !ids.has(id));
+
+            renderTeams();
+        }
+
+        // ======= 초기화 =======
+        loadLocal();
+
+        // 초기 UI 상태 로드 (보상/모드/K)
+        try {
+            const savedBonus = localStorage.getItem(WIN_BONUS_KEY);
+            if (savedBonus && winBonusInput) winBonusInput.value = String(Math.round(Number(savedBonus) || 10));
+        } catch (_) { }
+        if (winBonusInput) {
+            winBonusInput.addEventListener('change', () => {
+                const v = Math.round(Number(winBonusInput.value) || 10);
+                winBonusInput.value = String(v);
+                try { localStorage.setItem(WIN_BONUS_KEY, String(v)); } catch (_) { }
+            });
+        }
+        try {
+            const savedMode = localStorage.getItem(MODE_KEY);
+            if (savedMode && scoringModeSel) scoringModeSel.value = savedMode;
+            const savedK = localStorage.getItem(ELO_K_KEY);
+            if (savedK && eloKInput) eloKInput.value = String(Math.round(Number(savedK) || 32));
+        } catch (_) { }
+        if (scoringModeSel) {
+            scoringModeSel.addEventListener('change', () => {
+                try { localStorage.setItem(MODE_KEY, scoringModeSel.value); } catch (_) { }
+            });
+        }
+        if (eloKInput) {
+            eloKInput.addEventListener('change', () => {
+                const v = Math.round(Number(eloKInput.value) || 32);
+                eloKInput.value = String(v);
+                try { localStorage.setItem(ELO_K_KEY, String(v)); } catch (_) { }
+            });
+        }
+
+        // 초기 샘플 (비워둬도 동작, 원하면 아래 예시 주석 해제)
+        if (roster.length === 0) {
+            // const sample = ['김민수','박지현','이서준','최유진','정호진','한지민','서윤아','오준혁','장도윤','윤세아'];
+            // roster = sample.map(n=>({id:uid(), name:n, score:1000}));
+            // saveLocal();
+        }
+        renderRoster();
+    </script>
+</body>
+
+</html>
