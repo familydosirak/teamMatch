@@ -521,7 +521,7 @@
                 </div>
                 <div class="bd">
                     <div class="listbar manage" style="gap:10px;align-items:center;flex-wrap:wrap;padding-bottom:12px;">
-                        <input class="grow" id="nameInput" type="text" placeholder="이름 (최대 10자)" />
+                        <input class="grow" id="nameInput" type="text" placeholder="이름 (최대 14자)" />
                         <input style="width:120px" id="scoreInput" type="number" placeholder="초기 점수" value="1000" />
                         <label class="muted">주라인
                             <select id="linePrimaryInput" class="line-select">
@@ -1072,8 +1072,16 @@
             const score = Number(scoreInput.value || 0);
             const pLine = normLine(linePrimaryInput?.value || 'A');
             const sLine = normLine(lineSecondaryInput?.value || 'A');
-            if (!name) { alert('이름을 입력하세요.'); nameInput.focus(); return; }
-            if (name.length > 10) { alert('이름은 최대 10자까지만 가능합니다. 초과분은 잘립니다.'); name = name.slice(0, 10); }
+
+            if (!name) { 
+                alert('이름을 입력하세요.'); 
+                nameInput.focus(); return; 
+            }
+            if (name.length > 14) { 
+                alert('이름은 최대 14자까지만 가능합니다. 초과분은 잘립니다.'); 
+                name = name.slice(0, 14); 
+            }
+
             roster.push({ id: uid(), name, score: isFinite(score) ? score : 0, games: 0, wins: 0, losses: 0, mainLine: pLine, subLine: sLine });
             saveLocal(); renderRoster(); renderTeams();
             nameInput.value = ''; scoreInput.value = '1000'; if (linePrimaryInput) linePrimaryInput.value = 'A'; if (lineSecondaryInput) lineSecondaryInput.value = 'A'; nameInput.focus();
@@ -1097,9 +1105,9 @@
         rosterBody.addEventListener('dblclick', e => {
             const td = e.target.closest('.cell-name'); if (!td) return;
             const id = td.dataset.id; const p = roster.find(x => x.id === id); if (!p) return;
-            let newName = prompt('이름 수정 (최대 10자)', p.name);
+            let newName = prompt('이름 수정 (최대 14자)', p.name);
             if (newName != null) {
-                newName = newName.trim().slice(0, 10);
+                newName = newName.trim().slice(0, 14);
                 if (!newName) { alert('이름이 비었습니다.'); return; }
                 p.name = newName; saveLocal(); renderRoster(); renderTeams();
             }
@@ -1141,7 +1149,7 @@
                     }
                     if (!Array.isArray(data)) data = [data];
                     roster = data.map(it => ({
-                        id: uid(), name: String(it.name || '').slice(0, 10),
+                        id: uid(), name: String(it.name || '').slice(0, 14),
                         score: Number(it.score) || 0, games: Math.max(0, Math.floor(Number(it.games) || 0)),
                         wins: Math.max(0, Math.floor(Number(it.wins) || 0)), losses: Math.max(0, Math.floor(Number(it.losses) || 0)),
                         mainLine: normLine(it.mainLine), subLine: normLine(it.subLine),
