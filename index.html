@@ -328,9 +328,6 @@
             <button class="btn ghost" id="btnToTeam1">선택 → 1팀</button>
             <button class="btn ghost" id="btnToTeam2">선택 → 2팀</button>
             <button class="btn ghost" id="btnRemoveFromTeams">선택한 인원을 팀에서 제거</button>
-            <div class="btn ghost" id="dropTrash" title="이곳에 드롭하면 팀에서 제거" style="border-style:dashed;">
-                <span class="bin"></span> 드롭 → 팀에서 제거
-            </div>
             <div class="muted">선택한 인원(짝수)으로 1:1 팀을 만들고, 평균 점수 차를 최소화하도록 섞습니다.</div>
         </div>
 
@@ -350,6 +347,9 @@
                             <h3>2팀 <span class="avg" id="avg2">평균 0</span></h3>
                             <ul id="team2"></ul>
                         </div>
+                    </div>
+                    <div class="btn ghost" id="dropTrash" title="이곳에 드롭하면 팀에서 제거" style="border-style:dashed;">
+                            <span class="bin"></span> 드롭 → 팀에서 제거
                     </div>
                     <div class="winbar">
                         <label class="muted" style="display:flex;align-items:center;gap:6px">점수 방식
