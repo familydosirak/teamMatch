@@ -440,7 +440,7 @@
                     <div class="teamControls">
                         <label class="muted">팀 섞기 기준
                             <select id="balanceMode">
-                                <option value="ignore_line">라인무시</option>
+                                <!-- <option value="ignore_line">라인무시</option> -->
                                 <option value="prefer_line" selected>라인우선</option>
                                 <option value="prefer_mmr">MMR우선</option>
                             </select>
@@ -626,6 +626,8 @@
 
         let roster = [];                 // {id,name,score,games,wins,losses,mainLine,subLine}
         let currentTeams = { team1: [], team2: [] }; // ids
+        let teamHistory = [];          // [{team1:[...], team2:[...]} ...]
+        const HISTORY_LIMIT = 5;
 
         // ===== 유틸 =====
         const uid = () => Math.random().toString(36).slice(2, 10);
@@ -639,6 +641,29 @@
         const normLine = v => { v = String(v || 'A').toUpperCase(); return LINES.includes(v) ? v : 'A'; };
         const linePair = p => `${normLine(p.mainLine)}/${normLine(p.subLine)}`;
         const escapeHtml = (s = '') => s.replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;" }[ch]));
+
+
+        function pushHistory(split) {
+            teamHistory.unshift({
+                team1: (split.team1 || []).slice(),
+                team2: (split.team2 || []).slice()
+            });
+            if (teamHistory.length > HISTORY_LIMIT) teamHistory.pop();
+        }
+
+        // 여러 과거 조합과의 "같은 편 유지 수" 중 최대값 반환
+        function countSameSideMulti(t1Ids, t2Ids, histories = teamHistory.length ? teamHistory : [lastTeams]) {
+            let maxSame = 0;
+            for (const h of histories) {
+                const last1 = new Set(h.team1 || []);
+                const last2 = new Set(h.team2 || []);
+                let c = 0;
+                for (const id of t1Ids) if (last1.has(id)) c++;
+                for (const id of t2Ids) if (last2.has(id)) c++;
+                if (c > maxSame) maxSame = c;
+            }
+            return maxSame;
+        }
 
         function countSameSide(t1Ids, t2Ids, diversityBase = lastTeams) {
             const last1 = new Set(diversityBase.team1 || []);
@@ -739,43 +764,56 @@
 
         // 팀 분할 평가(값이 클수록 좋음)
         function scoreSplit(t1, t2, mode, allowDiff) {
-            const mean = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
-            const stdev = arr => {
-                const m = mean(arr);
-                return arr.length ? Math.sqrt(arr.reduce((s, x) => s + (x - m) * (x - m), 0) / arr.length) : 0;
-            };
+            const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+            const stdev = a => { const m = mean(a); return a.length ? Math.sqrt(a.reduce((s, x) => s + (x - m) * (x - m), 0) / a.length) : 0; };
 
             const m1 = mean(t1.map(p => p.score)), m2 = mean(t2.map(p => p.score));
             const diff = Math.abs(m1 - m2);
             const s1 = stdev(t1.map(p => p.score)), s2 = stdev(t2.map(p => p.score));
 
-            // 라인 커버리지
-            const a1 = assignRoles(t1), a2 = assignRoles(t2);
-            const coveredTotal = (a1.coveredRoles || 0) + (a2.coveredRoles || 0);      // 0~10
-            const primaryTotal = (a1.primaryAssigned || 0) + (a2.primaryAssigned || 0);// 0~10
+            // 기본값: 라인 점수 0
+            let coveredTotal = 0, primaryTotal = 0;
 
-            // 허용치 내 MMR 차이는 페널티 없음, 초과분만 부드럽게 감점
-            const over = Math.max(0, diff - allowDiff);
-            const mmrPenalty = (over * over) / 120; // 스케일 살짝 완화
+            // 라인우선일 때만 라인 배정/커버리지 계산
+            if (mode === 'prefer_line') {
+                const a1 = assignRoles(t1), a2 = assignRoles(t2);
+                coveredTotal = (a1.coveredRoles || 0) + (a2.coveredRoles || 0);
+                primaryTotal = (a1.primaryAssigned || 0) + (a2.primaryAssigned || 0);
+            }
 
-            // 팀 내부 분산 균형
+            // 모드별 파라미터
+            let wCover = 0, wPrimary = 0, jitterAmp = 1.5, diversityW = 1.5, allowBoost = 1.0, mmrDiv = 180;
+
+            if (mode === 'prefer_line') {
+                wCover = 12; wPrimary = 4; jitterAmp = 0.8; diversityW = 1.2; allowBoost = 1.0; mmrDiv = 120;
+            } else if (mode === 'prefer_mmr') {
+                // 라인 영향 0, 다양성 강하게, 랜덤성 크게
+                wCover = 0; wPrimary = 0; jitterAmp = 5.0; diversityW = 5.0; allowBoost = 1.8; mmrDiv = 280;
+            }
+
+            // 허용치 초과 MMR 페널티(완만)
+            const over = Math.max(0, diff - allowDiff * allowBoost);
+            const mmrPenalty = (over * over) / mmrDiv;
+
+            // 분산 차이 약벌점
             const spreadPenalty = Math.abs(s1 - s2) * 0.18;
 
-            // 지난 팀과 같은 편에 남아있는 인원수(유사도) 감점
+            // 히스토리 기반 다양성 패널티 + 동일조합 실격
             const t1Ids = t1.map(p => p.id), t2Ids = t2.map(p => p.id);
-            const sameSide = countSameSide(t1Ids, t2Ids, lastTeams);
-            const diversityPenalty = sameSide * 1.2; // 감점 강화
+            const sameSideMax = countSameSideMulti(t1Ids, t2Ids);
+            const total = (t1Ids.length + t2Ids.length) || 1;
+            const identicalPenalty = (sameSideMax === total) ? 1e6 : 0; // 완전 동일 금지
+            const diversityPenalty = sameSideMax * diversityW;
 
-            // 기본 가중치
-            const wCover = (mode === 'prefer_line') ? 12 : 8;
-            const wPrimary = (mode === 'prefer_line') ? 4 : 3;
+            const jitter = (Math.random() - 0.5) * jitterAmp;
 
-            // 소량 랜덤 지터(동점일 때 매번 동일 해를 고르는 문제 방지)
-            const jitter = (Math.random() - 0.5) * 0.8; // -0.4 ~ +0.4
-
-            // 최종 점수
-            return coveredTotal * wCover + primaryTotal * wPrimary - mmrPenalty - spreadPenalty - diversityPenalty + jitter;
+            return coveredTotal * wCover + primaryTotal * wPrimary
+                - mmrPenalty - spreadPenalty - diversityPenalty - identicalPenalty + jitter;
         }
+
+
+
+
 
         // 랜덤 스왑 로컬탐색
         function improveBySwaps(pick, playersById, mode, allowDiff, rounds = 260, temp = 1.4, minChange = 2) {
@@ -818,62 +856,76 @@
         }
 
         // ===== 팀 자동 빌드(강화 및 다양성 보장) =====
+        // ===== 팀 자동 빌드(강화 및 다양성 보장) =====
         function buildBalancedTeams(players, mode = 'prefer_line') {
             const n = players.length, half = n / 2;
             const idx = [...Array(n).keys()];
             const allowDiff = Math.max(0, Math.round(Number(mmrToleranceInput?.value || 120)));
             const strength = (mixStrengthSel?.value || 'normal');
 
-            // 강도 파라미터
-            const attempts = (strength === 'strong') ? Math.min(22000, 1400 * n) : Math.min(12000, 800 * n);
-            const swapRounds = (strength === 'strong') ? 520 : 300;
-            const initTemp = (strength === 'strong') ? 2.1 : 1.5;
+            // 모드별 파라미터
+            let attemptsBase, swapBase, tempBase, minChangeDiv;
+            if (mode === 'prefer_line') {
+                attemptsBase = 900; swapBase = 320; tempBase = 1.5; minChangeDiv = 4;
+            } else if (mode === 'prefer_mmr') {
+                // 더 강하게 흔들기
+                attemptsBase = 2000; swapBase = 800; tempBase = 3.0; minChangeDiv = 2;
+            }
 
-            // 지난 팀과 최소 몇 명은 갈라지게 만들기(총 인원/4를 최소 변경, 최솟값 2)
+            const attempts = Math.min((strength === 'strong' ? attemptsBase * 2 : attemptsBase) * n, 30000);
+            const swapRounds = (strength === 'strong' ? Math.round(swapBase * 1.4) : swapBase);
+            const initTemp = (strength === 'strong' ? tempBase * 1.2 : tempBase);
+
             const totalSelected = n;
-            const minChange = Math.max(2, Math.floor(totalSelected / 4));
+            const minChange = Math.max(2, Math.floor(totalSelected / minChangeDiv));
 
-            const playersById = new Map(players.map(p => [p.id, p]));
+            // ✅ 평가 전용 배열(실제 점수는 변경 없음)
+            let evalPlayers = players.map(p => p);
+            if (mode === 'prefer_mmr') {
+                evalPlayers = players.map(p => ({
+                    ...p,
+                    score: p.score + (Math.random() - 0.5) * 20 // ±10~30 정도로 조정 가능
+                }));
+            }
 
-            let bestPick = null;
-            let bestScore = -Infinity;
+            const playersById = new Map(evalPlayers.map(p => [p.id, p]));
+
+            let bestPick = null, bestScore = -Infinity;
 
             for (let i = 0; i < attempts; i++) {
                 shuffle(idx);
-
-                // 초기 분할
                 const t1Idx = idx.slice(0, half), t2Idx = idx.slice(half, n);
-                let cand1 = t1Idx.map(i => players[i]);
-                let cand2 = t2Idx.map(i => players[i]);
+
+                let cand1 = t1Idx.map(i => evalPlayers[i]);
+                let cand2 = t2Idx.map(i => evalPlayers[i]);
 
                 let sc = scoreSplit(cand1, cand2, mode, allowDiff);
 
-                // 지난 팀과 너무 비슷하면 초기 점수에 큰 감점
-                const sameCount = countSameSide(cand1.map(p => p.id), cand2.map(p => p.id), lastTeams);
-                if ((cand1.length + cand2.length) - sameCount < minChange) {
-                    sc -= (minChange - ((cand1.length + cand2.length) - sameCount)) * 20;
-                }
+                // 히스토리/최소 변경 인원 기반 패널티
+                const sameCount = countSameSideMulti(cand1.map(p => p.id), cand2.map(p => p.id));
+                const changed = (cand1.length + cand2.length) - sameCount;
+                if (changed < minChange) sc -= (minChange - changed) * 20;
 
                 if (sc > bestScore) {
                     bestScore = sc;
                     bestPick = { team1: cand1.map(p => p.id), team2: cand2.map(p => p.id) };
-                    // 좋은 초기해면 조기 종료로 스왑 탐색 진입
-                    const a1 = assignRoles(cand1), a2 = assignRoles(cand2);
-                    const coveredTotal = (a1.coveredRoles || 0) + (a2.coveredRoles || 0);
-                    if (mode === 'prefer_line' && coveredTotal === 10) break;
+
+                    if (mode === 'prefer_line') {
+                        const a1 = assignRoles(cand1), a2 = assignRoles(cand2);
+                        if ((a1.coveredRoles || 0) + (a2.coveredRoles || 0) === 10) break;
+                    }
                 }
             }
 
             if (!bestPick) {
-                return { team1: players.slice(0, half).map(p => p.id), team2: players.slice(half).map(p => p.id) };
+                return { team1: evalPlayers.slice(0, half).map(p => p.id), team2: evalPlayers.slice(half).map(p => p.id) };
             }
 
-            // 로컬 탐색으로 강제 다양화 + 개선
             bestPick = improveBySwaps(bestPick, playersById, mode, allowDiff, swapRounds, initTemp, minChange);
 
-            // 마지막으로도 최소 변경 인원 미달이면 몇 명 강제 스왑
+            // 마지막 보정(여전히 같은 편 유지가 많으면 강제 스왑)
             const total = bestPick.team1.length + bestPick.team2.length;
-            let changed = total - countSameSide(bestPick.team1, bestPick.team2, lastTeams);
+            let changed = total - countSameSideMulti(bestPick.team1, bestPick.team2);
             if (changed < minChange) {
                 const need = minChange - changed;
                 for (let k = 0; k < need; k++) {
@@ -881,10 +933,23 @@
                     const j = (Math.random() * bestPick.team2.length) | 0;
                     [bestPick.team1[i], bestPick.team2[j]] = [bestPick.team2[j], bestPick.team1[i]];
                 }
+                // 선택(조금 더 꼬기): MMR우선이면 추가 랜덤 교차
+                if (mode === 'prefer_mmr') {
+                    for (let k = 0; k < bestPick.team1.length; k++) {
+                        if (Math.random() < 0.3) {
+                            const i = (Math.random() * bestPick.team1.length) | 0;
+                            const j = (Math.random() * bestPick.team2.length) | 0;
+                            [bestPick.team1[i], bestPick.team2[j]] = [bestPick.team2[j], bestPick.team1[i]];
+                        }
+                    }
+                }
             }
 
             return bestPick;
         }
+
+
+
 
 
         function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0;[a[i], a[j]] = [a[j], a[i]]; } }
@@ -1073,13 +1138,13 @@
             const pLine = normLine(linePrimaryInput?.value || 'A');
             const sLine = normLine(lineSecondaryInput?.value || 'A');
 
-            if (!name) { 
-                alert('이름을 입력하세요.'); 
-                nameInput.focus(); return; 
+            if (!name) {
+                alert('이름을 입력하세요.');
+                nameInput.focus(); return;
             }
-            if (name.length > 16) { 
-                alert('이름은 최대 16자까지만 가능합니다. 초과분은 잘립니다.'); 
-                name = name.slice(0, 16); 
+            if (name.length > 16) {
+                alert('이름은 최대 16자까지만 가능합니다. 초과분은 잘립니다.');
+                name = name.slice(0, 16);
             }
 
             roster.push({ id: uid(), name, score: isFinite(score) ? score : 0, games: 0, wins: 0, losses: 0, mainLine: pLine, subLine: sLine });
@@ -1164,12 +1229,34 @@
         });
 
         // 팀 빌드/리메이크/정렬 변경 트리거
+        function teamsAlmostSame(a, b) {
+            const setA1 = new Set(a.team1), setA2 = new Set(a.team2);
+            let same = 0, total = (a.team1.length + a.team2.length) || 1;
+            for (const id of b.team1) if (setA1.has(id)) same++;
+            for (const id of b.team2) if (setA2.has(id)) same++;
+            return (same / total) >= 0.85; // 90% 이상 같으면 '거의 동일'
+        }
+
         document.getElementById('btnMakeTeams').addEventListener('click', () => {
             const selected = [...document.querySelectorAll('.rowcheck:checked')].map(cb => cb.dataset.id);
             if (selected.length < 2 || selected.length % 2 !== 0) { alert('짝수 인원을 선택하세요. (현재 ' + selected.length + '명)'); return; }
             const players = selected.map(id => roster.find(p => p.id === id)).filter(Boolean);
             const mode = (balanceModeSel && balanceModeSel.value) || 'prefer_line';
-            currentTeams = buildBalancedTeams(players, mode);
+
+            let first = buildBalancedTeams(players, mode);
+
+            // 안티-스턱: 거의 같으면 허용치+강도 임시상향 후 1회 재시도
+            if (teamsAlmostSame(first, lastTeams) && (mode !== 'prefer_line')) {
+                const bak = mmrToleranceInput.value;
+                mmrToleranceInput.value = String(Number(bak || 120) * 1.5 | 0);
+                const bakStrength = mixStrengthSel.value;
+                mixStrengthSel.value = 'strong';
+                first = buildBalancedTeams(players, mode);
+                mmrToleranceInput.value = bak;
+                mixStrengthSel.value = bakStrength;
+            }
+
+            currentTeams = first;
             renderTeams();
             lastTeams = JSON.parse(JSON.stringify(currentTeams));
         });
@@ -1188,7 +1275,7 @@
         rosterSortSel.addEventListener('change', renderRoster);
 
         document.getElementById('btnClearTeams').addEventListener('click', () => {
-            currentTeams = { team1: [], team2: [] }; 
+            currentTeams = { team1: [], team2: [] };
             lastTeams = { team1: [], team2: [] }; // 다양성 기준도 리셋
             renderTeams();
             document.getElementById('avg1').textContent = '평균 0';
