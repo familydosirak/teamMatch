@@ -1053,8 +1053,31 @@
         }
 
         // 승패 반영
-        document.getElementById('btnWin1').addEventListener('click', () => applyResult(1));
-        document.getElementById('btnWin2').addEventListener('click', () => applyResult(2));
+        // 승리 확정 확인 → 반영
+        function confirmAndApply(winTeam) {
+            const n1 = currentTeams.team1.length;
+            const n2 = currentTeams.team2.length;
+            if (n1 === 0 || n2 === 0 || n1 !== n2) {
+                alert('먼저 짝수 인원으로 팀을 만들어주세요.');
+                return;
+            }
+            const names1 = currentTeams.team1
+                .map(id => roster.find(p => p.id === id)?.name)
+                .filter(Boolean).join(', ');
+            const names2 = currentTeams.team2
+                .map(id => roster.find(p => p.id === id)?.name)
+                .filter(Boolean).join(', ');
+
+            const msg =
+                `${winTeam === 1 ? '1팀 승리' : '2팀 승리'}로 점수를 반영할까요?`;
+
+            if (confirm(msg)) applyResult(winTeam);
+        }
+
+        // 기존 applyResult는 그대로 두고, 이벤트 리스너만 교체
+        document.getElementById('btnWin1').addEventListener('click', () => confirmAndApply(1));
+        document.getElementById('btnWin2').addEventListener('click', () => confirmAndApply(2));
+
         function applyResult(winTeam) {
             const ids1 = new Set(currentTeams.team1), ids2 = new Set(currentTeams.team2);
             if (ids1.size === 0 || ids2.size === 0 || ids1.size !== ids2.size) { alert('먼저 짝수 인원으로 팀을 만들어주세요.'); return; }
