@@ -714,39 +714,67 @@
         function scoreSplit(t1, t2, mode, allowDiff) {
             const m1 = mean(t1.map(p => p.score)), m2 = mean(t2.map(p => p.score));
             const diff = Math.abs(m1 - m2);
-            const sdev = a => { const m = mean(a); return a.length ? Math.sqrt(a.reduce((s, x) => s + (x - m) * (x - m), 0) / a.length) : 0 };
+            const sdev = a => { const m = mean(a); return a.length ? Math.sqrt(a.reduce((s, x) => s + (x - m) * (x - m), 0) / a.length) : 0; };
             const s1 = sdev(t1.map(p => p.score)), s2 = sdev(t2.map(p => p.score));
 
             let coveredTotal = 0, primaryTotal = 0;
-            if (mode === 'prefer_line') { const a1 = assignRoles(t1), a2 = assignRoles(t2); coveredTotal = (a1.coveredRoles || 0) + (a2.coveredRoles || 0); primaryTotal = (a1.primaryAssigned || 0) + (a2.primaryAssigned || 0); }
+            let a1 = { coveredRoles: 0, primaryAssigned: 0 }, a2 = { coveredRoles: 0, primaryAssigned: 0 };
+            if (mode === 'prefer_line') {
+                a1 = assignRoles(t1);
+                a2 = assignRoles(t2);
+                coveredTotal = (a1.coveredRoles || 0) + (a2.coveredRoles || 0);
+                primaryTotal = (a1.primaryAssigned || 0) + (a2.primaryAssigned || 0);
+            }
 
-            // 모드 파라미터
+            // 모드별 파라미터
             let wCover = 0, wPrimary = 0, jitterAmp = 1.5, diversityW = 1.5, allowBoost = 1.0, mmrDiv = 180;
-            if (mode === 'prefer_line') { wCover = 12; wPrimary = 4; jitterAmp = 0.8; diversityW = 1.2; allowBoost = 1.0; mmrDiv = 120; }
-            else if (mode === 'prefer_mmr') { wCover = 0; wPrimary = 0; jitterAmp = 4.0; diversityW = 4.0; allowBoost = 1.0; mmrDiv = 200; }
+            if (mode === 'prefer_line') {
+                wCover = 12; wPrimary = 4; jitterAmp = 0.8; diversityW = 1.2; allowBoost = 1.0; mmrDiv = 120;
+            } else if (mode === 'prefer_mmr') {
+                wCover = 0; wPrimary = 0; jitterAmp = 4.0; diversityW = 4.0; allowBoost = 1.0; mmrDiv = 200;
+            }
 
-            // 부드러운 페널티
+            // 🟩 라인 공정성 보너스: 주라인을 더 많이 가진 팀의 평균 MMR이 더 낮을수록 가산점
+            //   - gap > 0 : 팀1이 주라인 더 많음 → (m1 < m2)일수록 보너스
+            //   - gap < 0 : 팀2가 주라인 더 많음 → (m2 < m1)일수록 보너스
+            let lineFairBonus = 0;
+            if (mode === 'prefer_line') {
+                const prim1 = a1.primaryAssigned || 0;
+                const prim2 = a2.primaryAssigned || 0;
+                const gap = prim1 - prim2;                // -5..+5
+                if (gap !== 0) {
+                    const favSign = Math.sign(gap);         // +1: 팀1이 유리, -1: 팀2가 유리
+                    const fairRaw = favSign * (m2 - m1);    // 유리한 팀의 평균이 낮을수록 값이 커짐(보너스)
+                    const wFair = 0.25;                     // ✨ 튜닝 포인트(0.15~0.35 범위 권장)
+                    lineFairBonus = clamp(fairRaw * wFair * Math.abs(gap), -60, 60);
+                    // ↑ 보너스/패널티는 최대 ±60으로 클립(과도한 영향 방지)
+                }
+            }
+
+            // 허용치 초과 페널티(기존 유지)
             const over = Math.max(0, diff - allowDiff * allowBoost);
             const mmrPenalty = (over * over) / mmrDiv;
             const spreadPenalty = Math.abs(s1 - s2) * 0.18;
 
-            // 히스토리 다양성(스왑 고려) + 동일조합 실격
+            // 다양성/동일조합(스왑 고려) (기존 유지)
             const t1Ids = t1.map(p => p.id), t2Ids = t2.map(p => p.id);
             const sameSideMax = countSameSideMultiEither(t1Ids, t2Ids);
             const total = (t1Ids.length + t2Ids.length) || 1;
             const identicalPenalty = (sameSideMax === total) ? 1e6 : 0;
             const diversityPenalty = sameSideMax * diversityW;
 
-            // ★ 하드 가드: 허용치 초과에 강한 제재
+            // 하드 가드(기존 유지)
             const hardOver = Math.max(0, diff - allowDiff);
             const hardPenalty = hardOver > 0 ? hardOver * hardOver * 250 : 0;
 
             const jitter = (Math.random() - 0.5) * jitterAmp;
 
             return coveredTotal * wCover + primaryTotal * wPrimary
+                + lineFairBonus                        // 🔗 새로 추가된 보너스 항
                 - mmrPenalty - spreadPenalty - diversityPenalty - identicalPenalty - hardPenalty
                 + jitter;
         }
+
 
         /* 로컬 스왑 탐색 */
         function improveBySwaps(pick, playersById, mode, allowDiff, rounds = 260, temp = 1.4, minChange = 2) {
