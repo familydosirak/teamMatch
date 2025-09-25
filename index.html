@@ -93,7 +93,6 @@
         /* ===== Layout ===== */
         .grid {
             display: grid;
-            /* 왼쪽 약간 축소(1.5fr), 오른쪽 최소 폭 확대(420px) */
             grid-template-columns: minmax(0, 0.7fr) minmax(500px, 1fr);
             gap: 14px;
             min-width: 0;
@@ -101,8 +100,7 @@
 
         @media (max-width: 980px) {
             .grid {
-                grid-template-columns: 1fr;
-                /* 좁은 화면에서는 한 줄 */
+                grid-template-columns: 1fr
             }
         }
 
@@ -204,7 +202,7 @@
             white-space: normal;
             text-overflow: unset;
             line-height: 1.3;
-            text-align:center;
+            text-align: center;
         }
 
         .teamRow .cell-line {
@@ -332,7 +330,6 @@
             border-bottom-right-radius: 12px
         }
 
-        /* 이름은 테이블 안에서만 한 줄 처리 */
         .rbody .cell-name,
         .rhead th:nth-child(2) {
             overflow: hidden;
@@ -360,16 +357,11 @@
             text-align: center
         }
 
-        /* 폼 전용 더 작은 셀렉트 */
         #linePrimaryInput,
         #lineSecondaryInput {
             width: 46px;
             height: 28px;
             font-size: 12px
-        }
-
-        .line-slash {
-            opacity: .6
         }
 
         .rscroll input.cell-score,
@@ -404,7 +396,6 @@
             appearance: none;
         }
 
-        /* 인원 관리 상단 바를 그리드로 정리 */
         .listbar.manage {
             display: grid;
             grid-template-columns: minmax(180px, 1fr) 120px repeat(2, auto) auto auto;
@@ -418,12 +409,10 @@
             }
         }
 
-        /* 점수 인풋 살짝 컴팩트 */
         .listbar.manage #scoreInput {
             width: 110px !important;
         }
 
-        /* 주/부 라인 선택 작은 스타일 유지 */
         #linePrimaryInput,
         #lineSecondaryInput {
             width: 46px;
@@ -431,10 +420,16 @@
             font-size: 12px;
         }
 
-        /* 오른쪽 '목록 정렬' 레이블이 항상 우측에 붙도록 */
         .listbar.manage label[for="rosterSort"],
         .listbar.manage select#rosterSort {
             justify-self: end;
+        }
+
+        /* 검색어 하이라이트 */
+        mark {
+            background: rgba(77, 163, 255, .25);
+            padding: 0 2px;
+            border-radius: 3px;
         }
     </style>
 </head>
@@ -479,7 +474,6 @@
                     </div>
 
                     <div class="winbar" style="margin-top:10px">
-
                         <div style="width: 100%;">
                             <label class="muted">점수 방식
                                 <select id="scoringMode">
@@ -497,7 +491,6 @@
                             <button class="btn primary" id="btnRemakeTeams">현재 멤버로 팀 다시 짜기</button>
                             <button class="btn ghost" id="btnClearTeams">팀 비우기</button>
                         </div>
-
                     </div>
 
                     <div class="muted">배치: 각 플레이어의 <b>현재 판수가 ≤ 10</b>이면 점수 변화가 <b>2배</b>로 적용됩니다.</div>
@@ -506,14 +499,14 @@
                     <div class="muted">
                         티어 예시 (400점 단위):<br>
                         Iron: 0–399<br>
-                        Bronze: 400–799<br> 
-                        Silver: 800–1199<br> 
+                        Bronze: 400–799<br>
+                        Silver: 800–1199<br>
                         Gold: 1200–1599<br>
-                        Platinum: 1600–1999<br> 
-                        Emerald: 2000–2399<br> 
+                        Platinum: 1600–1999<br>
+                        Emerald: 2000–2399<br>
                         Diamond: 2400–2799<br>
-                        Master: 2800–3199<br> 
-                        Grandmaster: 3200–3599<br> 
+                        Master: 2800–3199<br>
+                        Grandmaster: 3200–3599<br>
                         Challenger: 3600+
                     </div>
                 </div>
@@ -558,6 +551,14 @@
                             </select>
                         </label>
                     </div>
+
+                    <!-- ▼ 이름 검색 바 추가 -->
+                    <div class="listbar" style="gap:10px;align-items:center;padding-bottom:10px;">
+                        <input id="rosterSearch" type="text" placeholder="이름 검색 (최소 1자)" style="width:220px" />
+                        <button class="btn small ghost" id="rosterSearchClear" title="검색 지우기">지우기</button>
+                        <span class="muted" id="rosterSearchCount">전체 0명</span>
+                    </div>
+                    <!-- ▲ 이름 검색 바 -->
 
                     <div class="rosterTable">
                         <table class="rhead" style="padding-left : 10px; padding-right:15px;">
@@ -612,7 +613,6 @@
                         <button class="btn" id="btnLoad">불러오기</button>
                         <span class="muted">현재 멤버 목록을 저장하여 불러올 수 있습니다.</span>
                     </div>
-
                 </div>
             </div>
         </div>
@@ -634,10 +634,7 @@
         const wrClass = rate => rate >= 53 ? 'wr-good' : (rate <= 47 ? 'wr-bad' : '');
         const LINES = ['T', 'J', 'M', 'B', 'S', 'A'];
         const LINE_TITLE = { T: 'Top', J: 'Jungle', M: 'Mid', B: 'Bottom', S: 'Supporter', A: 'All' };
-        const normLine = v => {
-            v = String(v || 'A').toUpperCase();
-            return LINES.includes(v) ? v : 'A';
-        };
+        const normLine = v => { v = String(v || 'A').toUpperCase(); return LINES.includes(v) ? v : 'A'; };
         const linePair = p => `${normLine(p.mainLine)}/${normLine(p.subLine)}`;
         const escapeHtml = (s = '') => s.replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;" }[ch]));
 
@@ -682,45 +679,46 @@
         const teamSortSel = document.getElementById('teamSort');
         const rosterSortSel = document.getElementById('rosterSort');
 
+        // ▼ 검색 DOM
+        const rosterSearchInput = document.getElementById('rosterSearch');
+        const rosterSearchClear = document.getElementById('rosterSearchClear');
+        const rosterSearchCount = document.getElementById('rosterSearchCount');
+        let rosterSearchTerm = '';
+        const escapeRegExp = (s = '') => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
         const lineOptionsHTML = (sel) => ['T', 'J', 'M', 'B', 'S', 'A'].map(k => `<option value="${k}" ${sel === k ? 'selected' : ''} title="${LINE_TITLE[k]}">${k}</option>`).join('');
 
-        // ===== 역할 배정(라인우선용) : 주 → 부 → A로 채우기 =====
+        // ===== 역할 배정(라인우선용) =====
         function assignRoles(team) {
-            // team: [{id, mainLine, subLine, ...}]
             const roles = ['T', 'J', 'M', 'B', 'S'];
             const used = new Set();
-            const assignment = {}; // role -> playerId
+            const assignment = {};
             let primaryAssigned = 0;
 
-            // 1) 주라인으로 먼저 채우기
             for (const r of roles) {
                 const idx = team.findIndex(p => !used.has(p.id) && normLine(p.mainLine) === r);
                 if (idx >= 0) { const p = team[idx]; used.add(p.id); assignment[r] = p.id; primaryAssigned++; }
             }
-            // 2) 부라인으로 채우기
             for (const r of roles) {
                 if (assignment[r]) continue;
                 const idx = team.findIndex(p => !used.has(p.id) && normLine(p.subLine) === r);
                 if (idx >= 0) { const p = team[idx]; used.add(p.id); assignment[r] = p.id; }
             }
-            // 3) A(아무거나)로 채우기
             for (const r of roles) {
                 if (assignment[r]) continue;
                 const idx = team.findIndex(p => !used.has(p.id) && (normLine(p.mainLine) === 'A' || normLine(p.subLine) === 'A'));
                 if (idx >= 0) { const p = team[idx]; used.add(p.id); assignment[r] = p.id; }
             }
-
-            const coveredRoles = Object.keys(assignment).length; // 0~5
+            const coveredRoles = Object.keys(assignment).length;
             return { coveredRoles, primaryAssigned, assignment };
         }
 
         function evaluateSplit(t1, t2) {
             const sum = team => team.reduce((a, b) => a + (b.score || 0), 0);
             const diff = Math.abs(sum(t1) - sum(t2));
-            // 라인 커버리지 + 주라인 반영
             const a1 = assignRoles(t1), a2 = assignRoles(t2);
-            const coveredTotal = (a1.coveredRoles || 0) + (a2.coveredRoles || 0);        // 최대 10
-            const primaryTotal = (a1.primaryAssigned || 0) + (a2.primaryAssigned || 0);  // 최대 10
+            const coveredTotal = (a1.coveredTotal || a1.coveredRoles || 0) + (a2.coveredTotal || a2.coveredRoles || 0);
+            const primaryTotal = (a1.primaryTotal || a1.primaryAssigned || 0) + (a2.primaryTotal || a2.primaryAssigned || 0);
             return { diff, coveredTotal, primaryTotal };
         }
 
@@ -731,18 +729,14 @@
             const idx = [...Array(n).keys()];
 
             const better = (a, b) => {
-                if (mode === 'ignore_line') {
-                    if (a.diff !== b.diff) return a.diff < b.diff;
-                    if (a.coveredTotal !== b.coveredTotal) return a.coveredTotal > b.coveredTotal;
-                    return a.primaryTotal > b.primaryTotal;
-                } else if (mode === 'prefer_mmr') {
+                if (mode === 'ignore_line' || mode === 'prefer_mmr') {
                     if (a.diff !== b.diff) return a.diff < b.diff;
                     if (a.coveredTotal !== b.coveredTotal) return a.coveredTotal > b.coveredTotal;
                     return a.primaryTotal > b.primaryTotal;
                 } else { // prefer_line
-                    if (a.coveredTotal !== b.coveredTotal) return a.coveredTotal > b.coveredTotal;   // 5개 라인 다 채우는 팀 우선
-                    if (a.primaryTotal !== b.primaryTotal) return a.primaryTotal > b.primaryTotal;   // 가능한 많은 주라인 배정
-                    return a.diff < b.diff;                                                       // 마지막으로 MMR 균형
+                    if (a.coveredTotal !== b.coveredTotal) return a.coveredTotal > b.coveredTotal;
+                    if (a.primaryTotal !== b.primaryTotal) return a.primaryTotal > b.primaryTotal;
+                    return a.diff < b.diff;
                 }
             };
 
@@ -754,7 +748,6 @@
                 const score = evaluateSplit(t1, t2);
                 if (!best || better(score, best)) {
                     best = score; bestPick = { team1: t1.map(p => p.id), team2: t2.map(p => p.id) };
-                    // 라인우선일 때 "양쪽 모두 5개 라인 커버 + 주라인 최대 + MMR 거의 동일"이면 조기 종료
                     if (mode === 'prefer_line' && best.coveredTotal === 10 && best.primaryTotal >= 8 && best.diff <= 1) break;
                     if (mode !== 'prefer_line' && best.diff === 0) break;
                 }
@@ -763,16 +756,28 @@
         }
         function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0;[a[i], a[j]] = [a[j], a[i]]; } }
 
-        // ===== 로스터 렌더(정렬 지원) =====
+        // ===== 로스터 렌더(정렬 + 검색 필터 + 하이라이트) =====
         function renderRoster() {
             const key = (rosterSortSel && rosterSortSel.value) || 'name';
-            const list = roster.slice();
-            list.sort((a, b) => {
+            const term = rosterSearchTerm.trim();
+            const termLower = term.toLowerCase();
+
+            const sorted = roster.slice().sort((a, b) => {
                 if (key === 'name') return a.name.localeCompare(b.name, 'ko');
                 if (key === 'wr') return (winRate(b) - winRate(a)) || a.name.localeCompare(b.name, 'ko');
                 if (key === 'score') return (b.score - a.score) || a.name.localeCompare(b.name, 'ko');
                 return 0;
             });
+
+            const list = term
+                ? sorted.filter(p => p.name.toLowerCase().includes(termLower))
+                : sorted;
+
+            if (rosterSearchCount) {
+                rosterSearchCount.textContent = term
+                    ? `검색 결과 ${list.length}명 / 전체 ${roster.length}명`
+                    : `전체 ${roster.length}명`;
+            }
 
             rosterBody.innerHTML = '';
             list.forEach(p => {
@@ -781,9 +786,15 @@
                 const rate = winRate(p);
                 const p1 = normLine(p.mainLine || 'A');
                 const p2 = normLine(p.subLine || 'A');
+
+                const safeName = escapeHtml(p.name);
+                const highlighted = term
+                    ? safeName.replace(new RegExp(`(${escapeRegExp(escapeHtml(term))})`, 'gi'), '<mark>$1</mark>')
+                    : safeName;
+
                 tr.innerHTML = `
                     <td><input type="checkbox" data-id="${p.id}" class="rowcheck"></td>
-                    <td class="cell-name" data-id="${p.id}" title="더블클릭으로 이름 수정">${escapeHtml(p.name)}</td>
+                    <td class="cell-name" data-id="${p.id}" title="더블클릭으로 이름 수정">${highlighted}</td>
                     <td class="cell-line">
                         <select class="line-select cell-line1" data-id="${p.id}" title="주 라인">${lineOptionsHTML(p1)}</select>
                         <span class="line-slash">/</span>
@@ -796,6 +807,8 @@
                 `;
                 rosterBody.appendChild(tr);
             });
+
+            if (checkAll) checkAll.checked = false;
         }
 
         // 값 변경 핸들링
@@ -822,6 +835,7 @@
             e.dataTransfer.effectAllowed = 'move';
         });
 
+        // 승패 초기화(더블클릭)
         rosterBody.addEventListener('dblclick', e => {
             const wl = e.target.closest('.wl-badge');
             if (wl) {
@@ -829,11 +843,8 @@
                 const p = roster.find(x => x.id === id);
                 if (!p) return;
                 if (confirm(`"${p.name}"의 승패를 초기화하시겠습니까?`)) {
-                    p.wins = 0;
-                    p.losses = 0;
-                    saveLocal();
-                    renderRoster();
-                    renderTeams();
+                    p.wins = 0; p.losses = 0;
+                    saveLocal(); renderRoster(); renderTeams();
                 }
             }
         });
@@ -847,7 +858,6 @@
             document.getElementById('avg1').innerHTML = `평균 <span class="${a1 >= a2 ? 'good' : 'bad'}">${a1.toFixed(1)}</span>`;
             document.getElementById('avg2').innerHTML = `평균 <span class="${a2 >= a1 ? 'good' : 'bad'}">${a2.toFixed(1)}</span>`;
 
-            // 팀 정렬
             const sortKey = (teamSortSel && teamSortSel.value) || 'name';
             const cmp = (a, b) => {
                 if (sortKey === 'name') return a.name.localeCompare(b.name, 'ko');
@@ -900,22 +910,12 @@
         bindDropTarget(team1UL, team1Box, 1);
         bindDropTarget(team2UL, team2Box, 2);
 
-        // 인원 관리 테이블(로스터) 드롭 타겟으로 지정
-        rosterBody.addEventListener('dragover', e => {
-            e.preventDefault();
-            rosterBody.classList.add('drop-target'); // 강조 효과 줄 수도 있음
-        });
-        rosterBody.addEventListener('dragleave', e => {
-            if (!rosterBody.contains(e.relatedTarget)) {
-                rosterBody.classList.remove('drop-target');
-            }
-        });
+        // 인원 관리 테이블 드롭 (팀에서 제거)
+        rosterBody.addEventListener('dragover', e => { e.preventDefault(); rosterBody.classList.add('drop-target'); });
+        rosterBody.addEventListener('dragleave', e => { if (!rosterBody.contains(e.relatedTarget)) rosterBody.classList.remove('drop-target'); });
         rosterBody.addEventListener('drop', e => {
-            e.preventDefault();
-            rosterBody.classList.remove('drop-target');
-            const id = e.dataTransfer.getData('text/plain');
-            if (!id) return;
-            // 팀1/팀2에서 해당 멤버 제거
+            e.preventDefault(); rosterBody.classList.remove('drop-target');
+            const id = e.dataTransfer.getData('text/plain'); if (!id) return;
             currentTeams.team1 = currentTeams.team1.filter(x => x !== id);
             currentTeams.team2 = currentTeams.team2.filter(x => x !== id);
             renderTeams();
@@ -960,7 +960,7 @@
             saveLocal(); renderRoster(); renderTeams();
         });
 
-        // 이름 더블클릭
+        // 이름 더블클릭 -> 수정
         rosterBody.addEventListener('dblclick', e => {
             const td = e.target.closest('.cell-name'); if (!td) return;
             const id = td.dataset.id; const p = roster.find(x => x.id === id); if (!p) return;
@@ -1066,8 +1066,7 @@
             renderTeams();
         }
 
-        // 승패 반영
-        // 승리 확정 확인 → 반영
+        // 승패 반영 (확인 팝업)
         function confirmAndApply(winTeam) {
             const n1 = currentTeams.team1.length;
             const n2 = currentTeams.team2.length;
@@ -1075,20 +1074,9 @@
                 alert('먼저 짝수 인원으로 팀을 만들어주세요.');
                 return;
             }
-            const names1 = currentTeams.team1
-                .map(id => roster.find(p => p.id === id)?.name)
-                .filter(Boolean).join(', ');
-            const names2 = currentTeams.team2
-                .map(id => roster.find(p => p.id === id)?.name)
-                .filter(Boolean).join(', ');
-
-            const msg =
-                `${winTeam === 1 ? '1팀 승리' : '2팀 승리'}로 점수를 반영할까요?`;
-
+            const msg = `${winTeam === 1 ? '1팀 승리' : '2팀 승리'}로 점수를 반영할까요?`;
             if (confirm(msg)) applyResult(winTeam);
         }
-
-        // 기존 applyResult는 그대로 두고, 이벤트 리스너만 교체
         document.getElementById('btnWin1').addEventListener('click', () => confirmAndApply(1));
         document.getElementById('btnWin2').addEventListener('click', () => confirmAndApply(2));
 
@@ -1126,6 +1114,33 @@
             saveLocal(); renderRoster(); renderTeams();
         }
 
+        // ===== 검색 입력(디바운스) =====
+        let _searchTimer = null;
+        function setSearchTerm(v) {
+            rosterSearchTerm = (v || '').slice(0, 50);
+            renderRoster();
+        }
+        if (rosterSearchInput) {
+            rosterSearchInput.addEventListener('input', (e) => {
+                const v = e.target.value;
+                clearTimeout(_searchTimer);
+                _searchTimer = setTimeout(() => setSearchTerm(v), 120);
+            });
+            rosterSearchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    setSearchTerm(e.target.value);
+                }
+            });
+        }
+        if (rosterSearchClear) {
+            rosterSearchClear.addEventListener('click', () => {
+                rosterSearchInput.value = '';
+                setSearchTerm('');
+                rosterSearchInput.focus();
+            });
+        }
+
         // 초기화
         function initPrefs() {
             try { const savedBonus = localStorage.getItem(WIN_BONUS_KEY); if (savedBonus && winBonusInput) winBonusInput.value = String(Math.round(Number(savedBonus) || 10)); } catch (_) { }
@@ -1146,11 +1161,3 @@
 </body>
 
 </html>
-
-
-
-
-
-
-
-
