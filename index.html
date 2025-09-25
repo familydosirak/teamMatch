@@ -490,8 +490,8 @@
                             <button class="btn success" id="btnWin2" title="2팀 승">2팀 승리</button>
                         </div>
 
-                        <label class="muted">Elo K <input id="eloK" type="number" value="32" /></label>
-                        <label class="muted">승리 보상 <input id="winBonusInput" type="number" value="10" /></label>
+                        <label class="muted">Elo K <input id="eloK" type="number" value="60" /></label>
+                        <label class="muted">승리 보상 <input id="winBonusInput" type="number" value="30" /></label>
                         <div style="margin-left:auto;">
                             <button class="btn primary" id="btnRemakeTeams">현재 멤버로 팀 다시 짜기</button>
                             <button class="btn ghost" id="btnClearTeams">팀 비우기</button>
@@ -502,6 +502,12 @@
                     <div class="muted">배치: 각 플레이어의 <b>현재 판수가 ≤ 10</b>이면 점수 변화가 <b>2배</b>로 적용됩니다.</div>
                     <div class="muted">고정감산을 선택할 경우 승리 보상만큼의 점수가 가산/감산 됩니다.</div>
                     <div class="muted">멤버를 인원관리에 드래그 드롭하여 제외할 수 있습니다.</div>
+                    <div class="muted">
+                        티어 예시 (400점 단위):<br>
+                        Iron: 0–399, Bronze: 400–799, Silver: 800–1199, Gold: 1200–1599,<br>
+                        Platinum: 1600–1999, Emerald: 2000–2399, Diamond: 2400–2799,<br>
+                        Master: 2800–3199, Grandmaster: 3200–3599, Challenger: 3600+
+                    </div>
                 </div>
             </div>
 
@@ -1132,3 +1138,4 @@
 </body>
 
 </html>
+
