@@ -1172,11 +1172,25 @@
         // 저장/불러오기
         document.getElementById('btnSave').addEventListener('click', () => {
             const blob = new Blob([JSON.stringify(roster, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob); const a = document.createElement('a');
-            const now = new Date(), pad = n => String(n).padStart(2, '0');
-            a.href = url; a.download = `${now.getFullYear()}_${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.txt`;
-            a.click(); URL.revokeObjectURL(url);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+
+            const now = new Date();
+            const pad = n => String(n).padStart(2, '0');
+
+            // YYMMDD_HHMM 구성
+            const yy = String(now.getFullYear()).slice(-2);
+            const mm = pad(now.getMonth() + 1);
+            const dd = pad(now.getDate());
+            const HH = pad(now.getHours());
+            const MM = pad(now.getMinutes());
+
+            a.href = url;
+            a.download = `member_${yy}${mm}${dd}_${HH}${MM}.txt`; // 예: member_250926_1320.txt
+            a.click();
+            URL.revokeObjectURL(url);
         });
+        
         document.getElementById('btnLoad').addEventListener('click', () => {
             const f = fileInput.files?.[0]; if (!f) { alert('불러올 파일을 선택하세요.'); fileInput.click(); return; }
             const reader = new FileReader();
@@ -1327,7 +1341,7 @@
             try {
                 const m = localStorage.getItem(MODE_KEY); if (m && scoringModeSel) scoringModeSel.value = m;
                 const k = localStorage.getItem(ELO_K_KEY); if (k && eloKInput) eloKInput.value = String(Math.round(+k || 32));
-            } catch { }toggleScoringControls();
+            } catch { } toggleScoringControls();
             if (scoringModeSel) scoringModeSel.addEventListener('change', () => {
                 try { localStorage.setItem(MODE_KEY, scoringModeSel.value); } catch { }
                 toggleScoringControls();
