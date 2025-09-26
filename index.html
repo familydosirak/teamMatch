@@ -46,7 +46,8 @@
             gap: 10px;
             flex-wrap: wrap;
             align-items: center;
-            margin-bottom: 14px
+            margin-top: 14px;
+            margin-bottom: 14px;
         }
 
         .btn {
@@ -487,7 +488,7 @@
                             <h3>1팀 <span class="avg" id="avg1">평균 0</span></h3>
                             <ul id="team1"></ul>
                         </div>
-                        <div class="team" id="team2Box">
+                        <div class="team" id="team2Box" style="margin-top:15px;">
                             <h3>2팀 <span class="avg" id="avg2">평균 0</span></h3>
                             <ul id="team2"></ul>
                         </div>
@@ -607,10 +608,11 @@
                         </div>
                     </div>
                     <div class="bar">
-                        <button class="btn primary" id="btnMakeTeams">팀 짜기 (선택 인원 짝수)</button>
+                        <button class="btn primary" id="btnMakeTeams">선택한 인원으로 팀 짜기</button>
                         <button class="btn ghost" id="btnToTeam1">선택 → 1팀</button>
                         <button class="btn ghost" id="btnToTeam2">선택 → 2팀</button>
                         <button class="btn ghost" id="btnRemoveFromTeams">선택한 인원을 팀에서 제거</button>
+                        <div class="muted">멤버를 팀에 드래그 드롭하여 추가할 수 있습니다.</div>
                     </div>
                     <div class="listbar" style="padding-bottom:12px">
                         <button class="btn warn" id="btnDelete">인원 삭제(선택)</button>
