@@ -592,6 +592,10 @@
             user-select: text;
         }
     </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
 </head>
 
 <body>
@@ -769,11 +773,12 @@
                     </div>
                     <div class="listbar" style="padding-bottom:12px">
                         <button class="btn warn" id="btnDelete">인원 삭제(선택)</button>
-                        <button class="btn" id="btnSave">텍스트로 저장</button> <span class="muted">현재 멤버 목록을 저장하여 불러올 수
-                            있습니다.</span>
+                        <button class="btn" id="btnSave">텍스트로 저장</button>
+                        <button class="btn" id="btnExportXLSX">엑셀(XLSX)로 내보내기</button>
+                        <span class="muted">현재 멤버 목록을 저장하여 불러올 수 있습니다.</span>
                     </div>
                     <div class="listbar" style="padding-bottom:12px">
-                        <input id="fileInput" type="file" accept=".txt,.json" />
+                        <input id="fileInput" type="file" accept=".txt,.json,.xlsx" />
                         <button class="btn" id="btnLoad">불러오기</button>
                         <span class="muted">파일을 인원관리 리스트에 드래그하여 불러올 수 있습니다.</span>
                         <div class="muted" style="padding-top:15px;">
@@ -1461,6 +1466,170 @@
             URL.revokeObjectURL(url);
         });
 
+        // ===== XLSX 내보내기 (Excel) - 현재 정렬 상태 유지, 검색 필터 무시 =====
+
+        // 현재 테이블 정렬 상태(헤더 클릭으로 정한 rosterSortKey/rosterSortAsc)를 그대로 사용
+        function getSortedRosterForExport() {
+            const key = rosterSortKey;
+            const asc = rosterSortAsc ? 1 : -1;
+
+            // 검색어 필터는 내보내지 않으므로 roster 전체를 정렬만 적용
+            const sorted = roster.slice().sort((a, b) => {
+                const byName = a.name.localeCompare(b.name, 'ko');
+
+                if (key === 'name') return asc * byName;
+
+                if (key === 'line') {
+                    const la = (normLine(a.mainLine) + '/' + normLine(a.subLine));
+                    const lb = (normLine(b.mainLine) + '/' + normLine(b.subLine));
+                    const cmp = la.localeCompare(lb);
+                    return asc * (cmp || byName);
+                }
+
+                if (key === 'score') {
+                    const cmp = (a.score - b.score);
+                    return asc * (cmp || byName);
+                }
+
+                if (key === 'wl') {
+                    const wa = +a.wins || 0, wb = +b.wins || 0;
+                    const la = +a.losses || 0, lb = +b.losses || 0;
+                    const cmp = (wa - wb) || (lb - la); // 승 많을수록↑, 승 같으면 패 적을수록↑
+                    return asc * (cmp || byName);
+                }
+
+                if (key === 'wr') {
+                    const ra = winRate(a), rb = winRate(b);
+                    const cmp = (ra - rb);
+                    return asc * (cmp || byName);
+                }
+
+                if (key === 'games') {
+                    const ga = +a.games || 0, gb = +b.games || 0;
+                    const cmp = (ga - gb);
+                    return asc * (cmp || byName);
+                }
+
+                return byName;
+            });
+
+            return sorted;
+        }
+
+        // ===== XLSX 내보내기 (ExcelJS) - 현재 정렬 상태 유지 + 스타일 =====
+        async function exportRosterXLSX({ onlySelected = false } = {}) {
+            if (typeof ExcelJS === 'undefined') {
+                alert('ExcelJS 로더를 찾을 수 없습니다. 스크립트 태그를 확인하세요.');
+                return;
+            }
+
+            let list = getSortedRosterForExport(); // 현재 정렬 상태 그대로 사용
+
+            if (onlySelected) {
+                const ids = new Set(getSelectedIds());
+                list = list.filter(p => ids.has(p.id));
+            }
+
+            // 워크북/시트 생성
+            const wb = new ExcelJS.Workbook();
+            const ws = wb.addWorksheet('멤버목록', {
+                properties: { defaultRowHeight: 18 }
+            });
+
+            // 컬럼 정의 (이름 / 점수 / 판수 / 승 / 패 / 승률% / 주라인 / 부라인)
+            ws.columns = [
+                { header: '이름', key: 'name', width: 18 },
+                { header: '점수', key: 'score', width: 10 },
+                { header: '판수', key: 'games', width: 8 },
+                { header: '승', key: 'wins', width: 8 },
+                { header: '패', key: 'losses', width: 8 },
+                { header: '승률(%)', key: 'wr', width: 10 },
+                { header: '주라인', key: 'main', width: 10 },
+                { header: '부라인', key: 'sub', width: 10 },
+            ];
+
+            // 데이터 행 추가
+            list.forEach(p => {
+                ws.addRow({
+                    name: p.name,
+                    score: p.score,
+                    games: p.games || 0,
+                    wins: p.wins || 0,
+                    losses: p.losses || 0,
+                    wr: winRate(p),
+                    main: normLine(p.mainLine),
+                    sub: normLine(p.subLine),
+                });
+            });
+
+            // 헤더 스타일 (다크 톤 + 볼드 + 가운데 정렬)
+            const headerRow = ws.getRow(1);
+            headerRow.eachCell((cell) => {
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FF20304A' } // #20304a
+                };
+                cell.font = { bold: true, color: { argb: 'FFE6EEF8' } }; // #e6eef8
+                cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                cell.border = {
+                    bottom: { style: 'thin', color: { argb: 'FF1C2B45' } }
+                };
+            });
+
+            // 보기 옵션: 헤더 고정
+            ws.views = [{ state: 'frozen', ySplit: 1 }];
+
+            // 본문 스타일: 이름(A), 주라인(G), 부라인(H) 가운데 정렬
+            // 숫자 컬럼은 오른쪽 정렬
+            for (let r = 2; r <= ws.rowCount; r++) {
+                const row = ws.getRow(r);
+
+                // 가운데: A(1), G(7), H(8)
+                [1, 7, 8].forEach(c => {
+                    row.getCell(c).alignment = { vertical: 'middle', horizontal: 'center' };
+                });
+
+                // 오른쪽: 점수(B2), 판수(C3), 승(D4), 패(E5), 승률(F6)
+                [2, 3, 4, 5, 6].forEach(c => {
+                    row.getCell(c).alignment = { vertical: 'middle', horizontal: 'right' };
+                });
+            }
+
+            // 파일명: member_YYMMDD_HHMM.xlsx
+            const now = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            const yy = String(now.getFullYear()).slice(-2);
+            const mm = pad(now.getMonth() + 1);
+            const dd = pad(now.getDate());
+            const HH = pad(now.getHours());
+            const MM = pad(now.getMinutes());
+            const filename = `member_${yy}${mm}${dd}_${HH}${MM}.xlsx`;
+
+            // 저장
+            const buf = await wb.xlsx.writeBuffer();
+            const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+
+        // 버튼 클릭 → 선택된 인원만 내보낼지 확인
+        document.getElementById('btnExportXLSX').addEventListener('click', () => {
+            const ids = getSelectedIds();
+            if (ids.length > 0) {
+                const onlySelected = confirm('선택된 인원만 내보낼까요?\n(확인: 선택만, 취소: 전체)');
+                exportRosterXLSX({ onlySelected });
+            } else {
+                exportRosterXLSX({ onlySelected: false });
+            }
+        });
+
+
         window.addEventListener('dragover', e => e.preventDefault());
         window.addEventListener('drop', e => {
             // managePanel 외부에 드롭하면 네비게이션 방지
@@ -1489,22 +1658,29 @@
             const files = e.dataTransfer?.files;
             if (!files || !files.length) return;
             const f = files[0];
+            const name = (f.name || '').toLowerCase();
 
-            // txt/json만 받기 (원하면 제거 가능)
-            if (!/(\.txt|\.json)$/i.test(f.name)) {
-                alert('txt 또는 json 파일만 지원합니다.');
+            if (name.endsWith('.xlsx')) {
+                const reader = new FileReader();
+                reader.onload = () => loadFromXLSX(reader.result);
+                reader.readAsArrayBuffer(f);
                 return;
             }
 
-            const reader = new FileReader();
-            reader.onload = () => loadFromText(String(reader.result || ''));
-            reader.readAsText(f, 'utf-8');
-        });
+            if (name.endsWith('.txt') || name.endsWith('.json')) {
+                const reader = new FileReader();
+                reader.onload = () => loadFromText(String(reader.result || ''));
+                reader.readAsText(f, 'utf-8');
+                return;
+            }
 
+            alert('지원하지 않는 형식입니다. .txt, .json 또는 .xlsx 파일을 사용하세요.');
+        });
         function loadFromText(text) {
             try {
                 let data;
                 const trimmed = String(text || '').trim();
+
                 if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
                     data = JSON.parse(trimmed);
                 } else {
@@ -1514,27 +1690,65 @@
                         const a = line.split(',').map(s => s.trim());
                         if (!a[0]) return null;
                         return {
-                            name: a[0], score: +a[1] || 0,
-                            games: a[2] ? Math.max(0, Math.floor(+a[2] || 0)) : 0,
-                            wins: a[3] ? Math.max(0, Math.floor(+a[3] || 0)) : 0,
-                            losses: a[4] ? Math.max(0, Math.floor(+a[4] || 0)) : 0,
-                            mainLine: normLine(a[5] || 'A'),
-                            subLine: normLine(a[6] || 'A')
+                            name: a[0],
+                            score: +a[1] || 0,
+                            games: a[2] ? Math.floor(+a[2] || 0) : 0,
+                            wins: a[3] ? Math.floor(+a[3] || 0) : 0,
+                            losses: a[4] ? Math.floor(+a[4] || 0) : 0,
+                            mainLine: a[5],
+                            subLine: a[6]
                         };
                     }).filter(Boolean);
                 }
                 if (!Array.isArray(data)) data = [data];
-                roster = data.map(it => ({
-                    id: uid(),
-                    name: String(it.name || '').slice(0, 16),
-                    score: +it.score || 0,
-                    games: Math.max(0, Math.floor(+it.games || 0)),
-                    wins: Math.max(0, Math.floor(+it.wins || 0)),
-                    losses: Math.max(0, Math.floor(+it.losses || 0)),
-                    mainLine: normLine(it.mainLine),
-                    subLine: normLine(it.subLine)
-                })).filter(x => x.name);
 
+                // 검증 + 보정
+                const imported = [];
+                const errs = [];
+
+                data.forEach((it, i) => {
+                    const rowNo = i + 1; // 텍스트는 대략 행 번호만
+                    let name = String(it.name || '').slice(0, 16);
+                    if (!name) return; // 빈 이름은 스킵
+                    if (/^[=+\-@]/.test(name)) name = "'" + name;
+
+                    const score = Number(it.score) || 0; // 점수는 음수 허용 요청 없음
+                    const games = Math.floor(Number(it.games) || 0);
+                    const wins = Math.floor(Number(it.wins) || 0);
+                    const losses = Math.floor(Number(it.losses) || 0);
+
+                    if (games < 0 || wins < 0 || losses < 0) {
+                        errs.push(`행 ${rowNo}: 음수 값(games/wins/losses)`);
+                    }
+
+                    const toLetter = (v) => String(v || 'A').trim().toUpperCase().slice(0, 1);
+                    const mainLine = normLine(toLetter(it.mainLine || 'A')); // 허용 외 → A
+                    const subLine = normLine(toLetter(it.subLine || 'A'));
+
+                    imported.push({
+                        id: uid(),
+                        name,
+                        score,
+                        games,
+                        wins,
+                        losses,
+                        mainLine,
+                        subLine
+                    });
+                });
+
+                if (errs.length) {
+                    const preview = errs.slice(0, 5).join('\n');
+                    alert(`텍스트/JSON 불러오기 실패: 음수 값이 감지되었습니다.\n${preview}${errs.length > 5 ? `\n...외 ${errs.length - 5}건` : ''}`);
+                    return; 
+                }
+
+                if (!imported.length) {
+                    alert('유효한 데이터 행을 찾지 못했습니다.');
+                    return;
+                }
+
+                roster = imported;
                 const valid = new Set(roster.map(p => p.id));
                 currentTeams.team1 = currentTeams.team1.filter(id => valid.has(id));
                 currentTeams.team2 = currentTeams.team2.filter(id => valid.has(id));
@@ -1547,12 +1761,141 @@
         }
 
 
+        function loadFromXLSX(arrayBuffer) {
+            try {
+                const wb = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+                const first = wb.SheetNames && wb.SheetNames[0];
+                if (!first) { alert('시트를 찾을 수 없습니다.'); return; }
+                const ws = wb.Sheets[first];
+
+                const rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false });
+                if (!rows.length) { alert('빈 시트입니다.'); return; }
+
+                const header = rows[0].map(x => String(x || '').trim());
+                const dataRows = rows.slice(1);
+
+                const norm = s => String(s || '')
+                    .replace(/\s+/g, '')
+                    .replace(/[^가-힣a-zA-Z0-9]/g, '')
+                    .toLowerCase();
+
+                const headerIdx = {};
+                header.forEach((h, i) => { headerIdx[norm(h)] = i; });
+
+                const pick = (...alts) => {
+                    for (const a of alts) {
+                        const i = headerIdx[norm(a)];
+                        if (i !== undefined) return i;
+                    }
+                    return null;
+                };
+
+                const idxName = pick('이름', 'name');
+                const idxScore = pick('점수', 'score');
+                const idxGames = pick('판수', 'games');
+                const idxWins = pick('승', 'wins');
+                const idxLosses = pick('패', 'losses');
+                const idxMain = pick('주라인', '주 라인', 'mainline');
+                const idxSub = pick('부라인', '부 라인', 'subline');
+
+                if (idxName === null) {
+                    alert('엑셀에 "이름" 열이 필요합니다. (내보낸 형식을 사용해주세요)');
+                    return;
+                }
+
+                const get = (row, i, d = '') =>
+                    (i === null || row[i] === undefined || row[i] === null) ? d : String(row[i]).trim();
+
+                const toInt = (v, def = 0) => {
+                    const n = Number(String(v).trim());
+                    return Number.isFinite(n) ? Math.floor(n) : def;
+                };
+
+                const toLetter = (v) => String(v || 'A').trim().toUpperCase().slice(0, 1);
+
+                const imported = [];
+                const errs = [];
+
+                dataRows.forEach((r, idx) => {
+                    const rowNo = idx + 2; // 헤더 다음줄이 2행
+                    let name = get(r, idxName, '');
+                    if (!name) return; // 빈 이름은 스킵
+
+                    // 이름 최대 16자 + 수식 주입 방지
+                    name = name.slice(0, 16);
+                    if (/^[=+\-@]/.test(name)) name = "'" + name;
+
+                    const score = Number(get(r, idxScore, 0)) || 0; // 점수는 음수 허용 요청 없음
+                    const games = toInt(get(r, idxGames, 0), 0);
+                    const wins = toInt(get(r, idxWins, 0), 0);
+                    const losses = toInt(get(r, idxLosses, 0), 0);
+
+                    if (games < 0 || wins < 0 || losses < 0) {
+                        errs.push(`행 ${rowNo}: 음수 값(games/wins/losses)`);
+                    }
+
+                    const mainLine = normLine(toLetter(get(r, idxMain, 'A'))); // 허용 외 → A
+                    const subLine = normLine(toLetter(get(r, idxSub, 'A'))); // 허용 외 → A
+
+                    imported.push({
+                        id: uid(),
+                        name,
+                        score,
+                        games,
+                        wins,
+                        losses,
+                        mainLine,
+                        subLine
+                    });
+                });
+
+                if (errs.length) {
+                    const preview = errs.slice(0, 5).join('\n');
+                    alert(`엑셀 불러오기 실패: 음수 값이 감지되었습니다.\n${preview}${errs.length > 5 ? `\n...외 ${errs.length - 5}건` : ''}`);
+                    return;
+                }
+
+                if (!imported.length) {
+                    alert('유효한 데이터 행을 찾지 못했습니다.');
+                    return;
+                }
+
+                roster = imported;
+                const valid = new Set(roster.map(p => p.id));
+                currentTeams.team1 = currentTeams.team1.filter(id => valid.has(id));
+                currentTeams.team2 = currentTeams.team2.filter(id => valid.has(id));
+                saveLocal(); renderRoster(); renderTeams();
+
+                alert(`${imported.length}명 데이터를 XLSX에서 불러와 인원 목록을 교체했습니다.`);
+            } catch (e) {
+                console.error(e);
+                alert('XLSX 불러오기 중 오류가 발생했습니다.');
+            }
+        }
+
+
+
+
         document.getElementById('btnLoad').addEventListener('click', () => {
             const f = fileInput.files?.[0];
             if (!f) { alert('불러올 파일을 선택하세요.'); fileInput.click(); return; }
-            const reader = new FileReader();
-            reader.onload = () => loadFromText(String(reader.result || ''));
-            reader.readAsText(f, 'utf-8');
+
+            const name = f.name.toLowerCase();
+
+            // 확장자 분기
+            if (name.endsWith('.xlsx')) {
+                // XLSX는 이진이므로 ArrayBuffer로 읽기
+                const reader = new FileReader();
+                reader.onload = () => loadFromXLSX(reader.result);
+                reader.readAsArrayBuffer(f);
+            } else if (name.endsWith('.txt') || name.endsWith('.json')) {
+                // 텍스트 계열은 문자열로 읽기
+                const reader = new FileReader();
+                reader.onload = () => loadFromText(String(reader.result || ''));
+                reader.readAsText(f, 'utf-8');
+            } else {
+                alert('지원하지 않는 형식입니다. .txt, .json 또는 .xlsx 파일을 사용하세요.');
+            }
         });
 
         // 팀 만들기/리메이크/정렬
