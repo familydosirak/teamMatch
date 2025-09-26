@@ -506,8 +506,9 @@
                             <button class="btn success" id="btnWin2" title="2팀 승">2팀 승리</button>
                         </div>
 
-                        <label class="muted">Elo K <input id="eloK" type="number" value="60" /></label>
-                        <label class="muted">승리 보상 <input id="winBonusInput" type="number" value="30" /></label>
+                        <label class="muted" id="eloKWrap">Elo K <input id="eloK" type="number" value="60" /></label>
+                        <label class="muted" id="winBonusWrap">승리 보상 <input id="winBonusInput" type="number"
+                                value="30" /></label>
                         <div style="margin-left:auto;">
                             <button class="btn primary" id="btnRemakeTeams">현재 멤버로 팀 다시 짜기</button>
                             <button class="btn ghost" id="btnClearTeams">팀 비우기</button>
@@ -730,6 +731,8 @@
         const rosterSearchClear = document.getElementById('rosterSearchClear');
         const rosterSearchCount = document.getElementById('rosterSearchCount');
         const selectedNamesEl = document.getElementById('selectedNames');
+        const eloKWrap = document.getElementById('eloKWrap');
+        const winBonusWrap = document.getElementById('winBonusWrap');
         let rosterSearchTerm = '';
 
         const lineOptionsHTML = (sel) => ['T', 'J', 'M', 'B', 'S', 'A'].map(k => `<option value="${k}" ${sel === k ? 'selected' : ''} title="${LINE_TITLE[k]}">${k}</option>`).join('');
@@ -962,42 +965,6 @@
         }
 
 
-        function getSelectedIds() {
-            return [...document.querySelectorAll('.rowcheck:checked')].map(cb => cb.dataset.id);
-        }
-
-        function updateSelectedUI() {
-            const ids = getSelectedIds();
-            const names = ids
-                .map(id => (roster.find(p => p.id === id) || {}).name)
-                .filter(Boolean);
-
-            // 기존 "전체/검색 결과" 문구는 그대로 유지
-            const total = roster.length;
-            if (rosterSearchCount) {
-                // 현재 화면에 표시된 행 수(검색 적용 후) 반영
-                const visibleCount = document.querySelectorAll('#rosterBody tr').length;
-                const term = (rosterSearchTerm || '').trim();
-                const base = term
-                    ? `검색 결과 ${visibleCount}명 / 전체 ${total}명`
-                    : `전체 ${total}명`;
-                rosterSearchCount.textContent = base;
-            }
-
-            // 선택 요약 출력 (이름은 많으면 접기)
-            if (selectedNamesEl) {
-                if (ids.length) {
-                    const MAX = 8;
-                    const shown = names.slice(0, MAX);
-                    const more = names.length - shown.length;
-                    selectedNamesEl.textContent =
-                        ` | 선택 ${ids.length}명`;
-                } else {
-                    selectedNamesEl.textContent = '';
-                }
-            }
-        }
-
         function renderTeams() {
             const t1 = currentTeams.team1.map(id => roster.find(p => p.id === id)).filter(Boolean);
             const t2 = currentTeams.team2.map(id => roster.find(p => p.id === id)).filter(Boolean);
@@ -1131,6 +1098,53 @@
                 rosterSearchInput.focus();
                 updateSelectedUI();
             });
+        }
+
+        function getSelectedIds() {
+            return [...document.querySelectorAll('.rowcheck:checked')].map(cb => cb.dataset.id);
+        }
+
+        function updateSelectedUI() {
+            const ids = getSelectedIds();
+            const names = ids
+                .map(id => (roster.find(p => p.id === id) || {}).name)
+                .filter(Boolean);
+
+            // 기존 "전체/검색 결과" 문구는 그대로 유지
+            const total = roster.length;
+            if (rosterSearchCount) {
+                // 현재 화면에 표시된 행 수(검색 적용 후) 반영
+                const visibleCount = document.querySelectorAll('#rosterBody tr').length;
+                const term = (rosterSearchTerm || '').trim();
+                const base = term
+                    ? `검색 결과 ${visibleCount}명 / 전체 ${total}명`
+                    : `전체 ${total}명`;
+                rosterSearchCount.textContent = base;
+            }
+
+            // 선택 요약 출력 (이름은 많으면 접기)
+            if (selectedNamesEl) {
+                if (ids.length) {
+                    const MAX = 8;
+                    const shown = names.slice(0, MAX);
+                    const more = names.length - shown.length;
+                    selectedNamesEl.textContent =
+                        ` | 선택 ${ids.length}명`;
+                } else {
+                    selectedNamesEl.textContent = '';
+                }
+            }
+        }
+
+        function toggleScoringControls() {
+            const mode = (scoringModeSel && scoringModeSel.value) || 'elo';
+            if (mode === 'elo') {
+                if (eloKWrap) eloKWrap.style.display = '';
+                if (winBonusWrap) winBonusWrap.style.display = 'none';
+            } else { // fixed
+                if (eloKWrap) eloKWrap.style.display = 'none';
+                if (winBonusWrap) winBonusWrap.style.display = '';
+            }
         }
 
         // 인원 추가/삭제
@@ -1313,8 +1327,11 @@
             try {
                 const m = localStorage.getItem(MODE_KEY); if (m && scoringModeSel) scoringModeSel.value = m;
                 const k = localStorage.getItem(ELO_K_KEY); if (k && eloKInput) eloKInput.value = String(Math.round(+k || 32));
-            } catch { }
-            if (scoringModeSel) scoringModeSel.addEventListener('change', () => { try { localStorage.setItem(MODE_KEY, scoringModeSel.value); } catch { } });
+            } catch { }toggleScoringControls();
+            if (scoringModeSel) scoringModeSel.addEventListener('change', () => {
+                try { localStorage.setItem(MODE_KEY, scoringModeSel.value); } catch { }
+                toggleScoringControls();
+            });
             if (eloKInput) eloKInput.addEventListener('change', () => { const v = Math.round(+eloKInput.value || 32); eloKInput.value = String(v); try { localStorage.setItem(ELO_K_KEY, String(v)); } catch { } });
         }
 
@@ -1323,6 +1340,7 @@
         roster = roster.map(p => ({ ...p, mainLine: normLine(p.mainLine || 'A'), subLine: normLine(p.subLine || 'A') }));
         saveLocal();
         renderRoster(); renderTeams();
+        toggleScoringControls();
     </script>
 </body>
 
