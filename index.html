@@ -352,8 +352,8 @@
         }
 
         .rbody tbody tr {
-            background: linear-gradient(180deg, #0b1422, #0a111c);
-            border: 1px solid #1c2b45
+            background: #0b1422;
+            border: 1px solid #1c2b45;
         }
 
         .rbody tbody tr td {
@@ -590,6 +590,20 @@
             font-size: 11px;
             letter-spacing: .1px;
             user-select: text;
+        }
+
+        .rbody tbody tr.in-team1 {
+            background: #0b1422;
+            /* 단색 */
+            box-shadow: inset 0 0 0 2px rgba(77, 163, 255, .35);
+            border-color: #234a78;
+        }
+
+        .rbody tbody tr.in-team2 {
+            background: #0b1422;
+            /* 단색 */
+            box-shadow: inset 0 0 0 2px rgba(239, 68, 68, .35);
+            border-color: #5a2330;
         }
     </style>
 
@@ -1148,6 +1162,9 @@
             const asc = rosterSortAsc ? 1 : -1;
             const term = rosterSearchTerm.trim().toLowerCase();
 
+            const t1Set = new Set(currentTeams.team1 || []);
+            const t2Set = new Set(currentTeams.team2 || []);
+
             const sorted = roster.slice().sort((a, b) => {
                 const byName = a.name.localeCompare(b.name, 'ko');
                 if (key === 'name') return asc * byName;
@@ -1194,6 +1211,8 @@
             rosterBody.innerHTML = '';
             list.forEach(p => {
                 const tr = document.createElement('tr'); tr.setAttribute('draggable', 'true'); tr.dataset.id = p.id;
+                if (t1Set.has(p.id)) tr.classList.add('in-team1');
+                else if (t2Set.has(p.id)) tr.classList.add('in-team2');
                 const rate = winRate(p);
                 const p1 = normLine(p.mainLine || 'A'), p2 = normLine(p.subLine || 'A');
                 const safe = escapeHtml(p.name);
@@ -1298,6 +1317,7 @@
             currentTeams.team1 = currentTeams.team1.filter(x => x !== id);
             currentTeams.team2 = currentTeams.team2.filter(x => x !== id);
             renderTeams();
+            renderRoster();
         });
         rosterBody.addEventListener('dragstart', e => {
             // 입력 요소에서 시작하면 드래그 취소 (편집 방해 방지)
@@ -1327,6 +1347,7 @@
             roster.forEach(p => p.lastDelta = 0);
 
             renderTeams();
+            renderRoster();
         }
 
         /* ============ 이벤트/액션 ============ */
@@ -1740,7 +1761,7 @@
                 if (errs.length) {
                     const preview = errs.slice(0, 5).join('\n');
                     alert(`텍스트/JSON 불러오기 실패: 음수 값이 감지되었습니다.\n${preview}${errs.length > 5 ? `\n...외 ${errs.length - 5}건` : ''}`);
-                    return; 
+                    return;
                 }
 
                 if (!imported.length) {
@@ -1748,12 +1769,16 @@
                     return;
                 }
 
+                const prevCount = roster.length; // ★ 기존 인원 수 저장
+
                 roster = imported;
                 const valid = new Set(roster.map(p => p.id));
                 currentTeams.team1 = currentTeams.team1.filter(id => valid.has(id));
                 currentTeams.team2 = currentTeams.team2.filter(id => valid.has(id));
 
                 saveLocal(); renderRoster(); renderTeams();
+
+                alert(`${imported.length}명의 데이터를 불러와 인원 목록을 교체했습니다.`);
             } catch (e) {
                 console.error(e);
                 alert('불러오기 실패: 파일 형식을 확인하세요.');
@@ -1866,7 +1891,7 @@
                 currentTeams.team2 = currentTeams.team2.filter(id => valid.has(id));
                 saveLocal(); renderRoster(); renderTeams();
 
-                alert(`${imported.length}명 데이터를 XLSX에서 불러와 인원 목록을 교체했습니다.`);
+                alert(`${imported.length}명의 데이터를 XLSX에서 불러와 인원 목록을 교체했습니다.`);
             } catch (e) {
                 console.error(e);
                 alert('XLSX 불러오기 중 오류가 발생했습니다.');
@@ -1918,7 +1943,10 @@
                 pick = buildBalancedTeams(players, mode);
                 mmrToleranceInput.value = bakT; mixStrengthSel.value = bakS;
             }
-            currentTeams = pick; renderTeams(); lastTeams = JSON.parse(JSON.stringify(currentTeams));
+            currentTeams = pick;
+            renderTeams();
+            renderRoster();
+            lastTeams = JSON.parse(JSON.stringify(currentTeams));
         });
 
         document.getElementById('btnRemakeTeams').addEventListener('click', () => {
@@ -1937,6 +1965,7 @@
 
             currentTeams = buildBalancedTeams(players, (balanceModeSel && balanceModeSel.value) || 'prefer_line');
             renderTeams();
+            renderRoster();
             lastTeams = JSON.parse(JSON.stringify(currentTeams));
         });
 
@@ -1970,6 +1999,7 @@
             currentTeams.team1 = currentTeams.team1.filter(id => !ids.has(id));
             currentTeams.team2 = currentTeams.team2.filter(id => !ids.has(id));
             renderTeams();
+            renderRoster();
         });
 
         // 승패 반영
