@@ -1058,7 +1058,6 @@
                 saveLocal();
                 renderRoster();
                 renderTeams();
-                renderHistory();
                 // 원격 승리 신호 수신 시 폭죽 재생 (읽기 전용도 동일하게)
                 try {
                     if (data.winEvent && typeof data.winEvent.ts === 'number' && data.winEvent.ts > SYNC.lastWinTs) {
