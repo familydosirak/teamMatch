@@ -911,7 +911,7 @@
             document.body.classList.toggle('readonly', SYNC.readOnly);
 
             // 모든 조작 요소 잠금(보기/내보내기/검색 몇 개만 허용)
-            const allowIds = new Set(['rosterSearch', 'rosterSearchClear', 'btnCopyTeamsText', 'btnExportXLSX', 'btnShareRoom']);
+            const allowIds = new Set(['rosterSearch', 'rosterSearchClear', 'btnCopyTeamsText', 'btnExportXLSX', 'btnShareRoom','btnSave']);
             document.querySelectorAll('button, input, select, textarea').forEach(el => {
                 const id = el.id || '';
                 el.disabled = SYNC.readOnly && !allowIds.has(id);
