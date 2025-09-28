@@ -893,6 +893,7 @@
             readOnly: false,
             writing: false,
             unsub: null,
+            applying: false,
             lastLocalTs: 0,
             lastWinTs: 0,      // 마지막으로 처리한 winEvent 타임스탬프(중복 재생 방지)
             lastEmittedTs: 0   // 내가 방금 쏜 이벤트 ts(내 화면 중복 방지용)
@@ -988,6 +989,7 @@
         function applyRemoteState(data) {
             try {
                 if (!data) return;
+                SYNC.applying = true;
                 try {
                     if (data.winEvent && typeof data.winEvent.ts === 'number' && data.winEvent.ts > SYNC.lastWinTs) {
                         SYNC.lastWinTs = data.winEvent.ts;
@@ -1073,6 +1075,8 @@
 
             } catch (e) {
                 console.warn('[SYNC] apply error', e);
+            }finally {
+                SYNC.applying = false;
             }
         }
 
@@ -1080,6 +1084,7 @@
         const publishState = (() => {
             let t = null;
             return function () {
+                if (SYNC.applying) return;
                 if (!SYNC.enabled || SYNC.writing || !SYNC.roomId) return;
                 if (!canEdit()) return;
                 clearTimeout(t);
@@ -1093,7 +1098,7 @@
                         }, { merge: true });
                     } catch (e) { console.warn('[SYNC] publish error', e); }
                     finally { setTimeout(() => { SYNC.writing = false; }, 40); }
-                }, 60);
+                }, 400);
             };
         })();
 
@@ -1119,7 +1124,10 @@
         }
 
 
-        function touchSync() { publishState(); }
+        function touchSync() {
+            if (SYNC.applying) return;
+            publishState(); 
+        }
 
         function startRoomSync(roomId) {
             if (SYNC.enabled) return;
@@ -1528,7 +1536,7 @@
             updateSelectedUI();
             updateRosterHeaderIndicators();
 
-            touchSync();
+            //touchSync();
         }
 
 
@@ -1588,7 +1596,7 @@
             t1.forEach(p => team1UL.appendChild(makeRow(p)));
             t2.forEach(p => team2UL.appendChild(makeRow(p)));
 
-            touchSync();
+            //touchSync();
         }
 
         /* ============ 드래그/드롭 ============ */
@@ -1601,7 +1609,7 @@
                 e.preventDefault(); boxEl.classList.remove('drop-target');
                 const id = e.dataTransfer.getData('text/plain');
                 if (!id) return;
-                addIdToTeam(teamNo, id);
+                addIdToTeam(teamNo, id, true)
             };
             ulEl.addEventListener('dragover', onDragOver);
             ulEl.addEventListener('dragenter', onDragEnter);
@@ -1643,7 +1651,7 @@
             }
         });
 
-        function addIdToTeam(teamNo, id) {
+        function addIdToTeam(teamNo, id, doSync = fals) {
             if (!requireOwner()) return;
             if (!id) return;
             const other = teamNo === 1 ? currentTeams.team2 : currentTeams.team1;
@@ -1658,7 +1666,7 @@
 
             renderTeams();
             renderRoster();
-            touchSync();
+            if (doSync) touchSync();
         }
 
         /* ============ 이벤트/액션 ============ */
