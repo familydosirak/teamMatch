@@ -1002,7 +1002,7 @@
                 if (typeof data.ts === 'number' && SYNC.lastLocalTs && data.ts < SYNC.lastLocalTs) {
                     return; // 이 스냅샷은 이전 버전이므로 상태 덮어쓰지 않음 (이펙트는 위에서 이미 처리)
                 }
-                
+
                 if (data.winEvent && typeof data.winEvent.ts === 'number' && SYNC.lastWinTs === 0) {
                     SYNC.lastWinTs = data.winEvent.ts;
                 }
@@ -1029,10 +1029,10 @@
                     roster = data.roster.map(p => ({
                         id: p.id, name: p.name, score: +p.score || 0,
                         games: +p.games || 0, wins: +p.wins || 0, losses: +p.losses || 0,
-                        mainLine: normLine(p.mainLine), subLine: normLine(p.subLine), lastDelta: 0
+                        mainLine: normLine(p.mainLine), subLine: normLine(p.subLine),
+                        lastDelta: Number.isFinite(+p.lastDelta) ? (+p.lastDelta) : 0
                     }));
                 }
-
                 if (data.currentTeams) {
                     currentTeams = {
                         team1: Array.isArray(data.currentTeams.team1) ? data.currentTeams.team1.slice() : [],
@@ -1126,10 +1126,22 @@
             if (SYNC.enabled) return;
             SYNC.enabled = true;
             SYNC.roomId = roomId;
+            let firstSnap = true;
             db.collection('rooms').doc(roomId).onSnapshot(snap => {
                 const data = snap.data();
+
+                // 첫 구독 스냅샷에 문서에 남아있던 과거 winEvent가 있으면
+                // 그 ts를 바로 기록해서(이미 본 것으로 간주) 재생 안 하게 함
+                if (firstSnap) {
+                    firstSnap = false;
+                    if (data && data.winEvent && typeof data.winEvent.ts === 'number') {
+                        SYNC.lastWinTs = data.winEvent.ts;
+                    }
+                }
+
                 if (data) applyRemoteState(data);
             });
+
         }
 
         const STORAGE_KEY = 'team_roster_v1', WIN_BONUS_KEY = 'win_bonus_v1', MODE_KEY = 'scoring_mode_v1', ELO_K_KEY = 'elo_k_v1';
@@ -2431,18 +2443,24 @@
 
             saveLocal(); renderRoster(); renderTeams();
 
-            if (SYNC.enabled && SYNC.roomId) {
-                await writeRoomNow(); // <- packState() 포함해서 전체 상태 저장
-            }
-
             // 승리 이펙트를 모두가 보도록 winEvent 브로드캐스트
             if (SYNC.enabled && SYNC.roomId) {
+                await writeRoomNow(); // <- packState() 포함해서 전체 상태 저장
                 const ts = Date.now();
                 SYNC.lastEmittedTs = ts; // 내가 쏜 이벤트 ts 기억(중복 방지)
                 try {
                     await db.collection('rooms').doc(SYNC.roomId).set({
                         winEvent: { ts, team: winTeam }
                     }, { merge: true });
+                    setTimeout(async () => {
+                        try {
+                            await db.collection('rooms').doc(SYNC.roomId).set({
+                                winEvent: firebase.firestore.FieldValue.delete()
+                            }, { merge: true });
+                        } catch (e) {
+                            console.warn('[SYNC] clear winEvent error', e);
+                        }
+                    }, 3000);
                 } catch (e) {
                     console.warn('[SYNC] winEvent publish error', e);
                 }
