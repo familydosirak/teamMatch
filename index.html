@@ -609,6 +609,23 @@
 
     <script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyD03wiOiIKWg1JCv8pDSCzKDxaTY73JjbY",
+            authDomain: "teammaker-9b01e.firebaseapp.com",
+            projectId: "teammaker-9b01e",
+            storageBucket: "teammaker-9b01e.firebasestorage.app",
+            messagingSenderId: "208384601983",
+            appId: "1:208384601983:web:5f2298dd2e06bebee5b44a",
+            measurementId: "G-RWX3W2203B"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+    </script>
 
 </head>
 
@@ -647,6 +664,8 @@
                                 <option value="score">점수 ▲</option>
                             </select>
                         </label>
+                        <button class="btn ghost" id="btnShareRoom" title="같이 보기 링크 생성">공유 링크</button>
+                        <span class="muted" id="viewModeBadge" style="white-space:nowrap;"></span>
                     </div>
 
                     <div class="teams">
@@ -862,6 +881,130 @@
         /* =========================
             상태/상수/유틸 (필요한 것만)
         ========================= */
+
+        /* === [SYNC] 실시간 동기화 + 호스트 전용 편집 === */
+        const SYNC = { enabled: false, roomId: null, uid: null, isOwner: false, readOnly: false, writing: false, unsub: null };
+
+        function getRoomIdFromURL() { const m = location.hash.match(/room=([a-zA-Z0-9_-]{4,})/); return m ? m[1] : null; }
+
+        function setReadOnly(on) {
+            SYNC.readOnly = !!on;
+            document.body.classList.toggle('readonly', SYNC.readOnly);
+
+            // 모든 조작 요소 잠금(보기/내보내기/검색 몇 개만 허용)
+            const allowIds = new Set(['rosterSearch', 'rosterSearchClear', 'btnCopyTeamsText', 'btnExportXLSX', 'btnShareRoom']);
+            document.querySelectorAll('button, input, select, textarea').forEach(el => {
+                const id = el.id || '';
+                el.disabled = SYNC.readOnly && !allowIds.has(id);
+            });
+
+            const badge = document.getElementById('viewModeBadge');
+            if (badge) badge.textContent = SYNC.isOwner ? '호스트' : '읽기전용';
+        }
+
+        function canEdit() { return !SYNC.enabled || SYNC.isOwner; }
+
+        async function createRoomIfNeeded(roomId) {
+            const ref = db.collection('rooms').doc(roomId);
+            const snap = await ref.get();
+            if (!snap.exists) {
+                await ref.set({ ownerUid: SYNC.uid, ts: Date.now(), ...packState() }, { merge: false });
+            }
+        }
+
+        async function ensureRoomAndGetUrl() {
+            let room = getRoomIdFromURL();
+            if (!room) {
+                room = Math.random().toString(36).slice(2, 6) + Math.random().toString(36).slice(2, 6);
+                const url = new URL(location.href); url.hash = 'room=' + room; history.replaceState(null, '', url.toString());
+                if (SYNC.uid) await createRoomIfNeeded(room);
+            }
+            return location.href;
+        }
+
+        function packState() {
+            return {
+                roster,
+                currentTeams,
+                prefs: {
+                    scoringMode: scoringModeSel?.value || 'elo',
+                    eloK: +eloKInput?.value || 60,
+                    winBonus: +winBonusInput?.value || 30,
+                    balanceMode: balanceModeSel?.value || 'prefer_line',
+                    mmrTolerance: +mmrToleranceInput?.value || 120,
+                    teamSort: teamSortSel?.value || 'name'
+                }
+            };
+        }
+
+        function applyRemoteState(data) {
+            try {
+                if (!data) return;
+
+                // 호스트 판정 및 UI 잠금
+                if (data.ownerUid) {
+                    SYNC.isOwner = (SYNC.uid && data.ownerUid === SYNC.uid);
+                    setReadOnly(!SYNC.isOwner);
+                }
+
+                if (Array.isArray(data.roster)) {
+                    roster = data.roster.map(p => ({
+                        id: p.id, name: p.name, score: +p.score || 0,
+                        games: +p.games || 0, wins: +p.wins || 0, losses: +p.losses || 0,
+                        mainLine: normLine(p.mainLine), subLine: normLine(p.subLine), lastDelta: 0
+                    }));
+                }
+                if (data.currentTeams) {
+                    currentTeams = {
+                        team1: Array.isArray(data.currentTeams.team1) ? data.currentTeams.team1.slice() : [],
+                        team2: Array.isArray(data.currentTeams.team2) ? data.currentTeams.team2.slice() : []
+                    };
+                }
+                if (data.prefs) {
+                    const p = data.prefs;
+                    if (scoringModeSel && p.scoringMode) scoringModeSel.value = p.scoringMode;
+                    if (eloKInput && Number.isFinite(+p.eloK)) eloKInput.value = String(p.eloK);
+                    if (winBonusInput && Number.isFinite(+p.winBonus)) winBonusInput.value = String(p.winBonus);
+                    if (balanceModeSel && p.balanceMode) balanceModeSel.value = p.balanceMode;
+                    if (mmrToleranceInput && Number.isFinite(+p.mmrTolerance)) mmrToleranceInput.value = String(p.mmrTolerance);
+                    if (teamSortSel && p.teamSort) teamSortSel.value = p.teamSort;
+                    toggleScoringControls();
+                }
+
+                saveLocal();
+                renderRoster();
+                renderTeams();
+            } catch (e) { console.warn('[SYNC] apply error', e); }
+        }
+
+        const publishState = (() => {
+            let t = null;
+            return function () {
+                if (!SYNC.enabled || SYNC.writing || !SYNC.roomId) return;
+                if (!canEdit()) return;
+                clearTimeout(t);
+                t = setTimeout(async () => {
+                    try {
+                        SYNC.writing = true;
+                        await db.collection('rooms').doc(SYNC.roomId).set({ ts: Date.now(), ...packState() }, { merge: true });
+                    } catch (e) { console.warn('[SYNC] publish error', e); }
+                    finally { setTimeout(() => { SYNC.writing = false; }, 40); }
+                }, 60);
+            };
+        })();
+
+        function touchSync() { publishState(); }
+
+        function startRoomSync(roomId) {
+            if (SYNC.enabled) return;
+            SYNC.enabled = true;
+            SYNC.roomId = roomId;
+            db.collection('rooms').doc(roomId).onSnapshot(snap => {
+                const data = snap.data();
+                if (data) applyRemoteState(data);
+            });
+        }
+
         const STORAGE_KEY = 'team_roster_v1', WIN_BONUS_KEY = 'win_bonus_v1', MODE_KEY = 'scoring_mode_v1', ELO_K_KEY = 'elo_k_v1';
         let roster = [];
         let currentTeams = { team1: [], team2: [] };
@@ -1245,6 +1388,8 @@
             if (checkAll) checkAll.checked = false;
             updateSelectedUI();
             updateRosterHeaderIndicators();
+
+            touchSync();
         }
 
 
@@ -1299,6 +1444,8 @@
 
             t1.forEach(p => team1UL.appendChild(makeRow(p)));
             t2.forEach(p => team2UL.appendChild(makeRow(p)));
+
+            touchSync();
         }
 
         /* ============ 드래그/드롭 ============ */
@@ -1363,14 +1510,26 @@
         /* ============ 이벤트/액션 ============ */
         // 로스터 셀 변경
         rosterBody.addEventListener('change', e => {
-            const t = e.target, id = t.dataset.id, p = roster.find(x => x.id === id); if (!p) return;
+            // 보기전용이면 체크박스(rowcheck) 외에는 막기
+            if (!canEdit()) {
+                if (!e.target.classList.contains('rowcheck')) {
+                    alert('읽기 전용 모드입니다. (호스트만 조작 가능)');
+                    e.preventDefault();
+                    return;
+                }
+            }
+            const t = e.target, id = t.dataset.id, p = roster.find(x => x.id === id); if (!p) {
+                if (t.classList.contains('rowcheck')) { updateSelectedUI(); }
+                return;
+            }
             if (t.classList.contains('rowcheck')) { updateSelectedUI(); return; }
             if (t.classList.contains('cell-line1')) p.mainLine = normLine(t.value);
             else if (t.classList.contains('cell-line2')) p.subLine = normLine(t.value);
             else if (t.classList.contains('cell-score')) p.score = isFinite(+t.value) ? +t.value : p.score;
             else if (t.classList.contains('cell-games')) p.games = Math.max(0, Math.floor(+t.value || 0));
-            saveLocal(); renderTeams();
+            saveLocal(); renderTeams(); touchSync();
         });
+
 
         // 로스터 승패 초기화
         rosterBody.addEventListener('dblclick', e => {
@@ -2378,6 +2537,29 @@
 
 
         // ===== 초기화 =====
+
+        // [SYNC] Firebase Auth 준비 후 자동 접속/버튼 연결
+        firebase.auth().onAuthStateChanged(async (user) => {
+            if (!user) {
+                try { await firebase.auth().signInAnonymously(); } catch (e) { console.warn(e); }
+                return;
+            }
+            SYNC.uid = user.uid;
+
+            const rid = getRoomIdFromURL();
+            if (rid && !SYNC.enabled) startRoomSync(rid);
+        });
+
+        document.getElementById('btnShareRoom')?.addEventListener('click', async () => {
+            if (!firebase.auth().currentUser) {
+                try { await firebase.auth().signInAnonymously(); } catch (e) { }
+            }
+            const url = await ensureRoomAndGetUrl();
+            try { await navigator.clipboard.writeText(url); alert('공유 링크를 복사했습니다:\n' + url); }
+            catch { prompt('이 URL을 복사하세요', url); }
+        });
+
+
         loadLocal(); initPrefs();
         roster = roster.map(p => ({ ...p, mainLine: normLine(p.mainLine || 'A'), subLine: normLine(p.subLine || 'A') }));
         saveLocal();
