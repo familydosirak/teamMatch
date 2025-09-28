@@ -883,7 +883,17 @@
         ========================= */
 
         /* === [SYNC] 실시간 동기화 + 호스트 전용 편집 === */
-        const SYNC = { enabled: false, roomId: null, uid: null, isOwner: false, readOnly: false, writing: false, unsub: null };
+        const SYNC = {
+            enabled: false,
+            roomId: null,
+            uid: null,
+            isOwner: false,
+            readOnly: false,
+            writing: false,
+            unsub: null,
+            lastWinTs: 0,      // 마지막으로 처리한 winEvent 타임스탬프(중복 재생 방지)
+            lastEmittedTs: 0   // 내가 방금 쏜 이벤트 ts(내 화면 중복 방지용)
+        };
         // === Host key (ownerKey) : 방을 만든 브라우저만 아는 비밀키로 호스트 판별 고정 ===
         function lsKeyForOwner(roomId) { return `room_owner_key_${roomId}`; }
         function getLocalOwnerKey(roomId) { try { return localStorage.getItem(lsKeyForOwner(roomId)); } catch { return null; } }
@@ -969,6 +979,9 @@
         function applyRemoteState(data) {
             try {
                 if (!data) return;
+                if (data.winEvent && typeof data.winEvent.ts === 'number' && SYNC.lastWinTs === 0) {
+                    SYNC.lastWinTs = data.winEvent.ts;
+                }
 
                 // 호스트 판정 및 UI 잠금
                 if (data) {
@@ -1022,6 +1035,19 @@
                 renderRoster();
                 renderTeams();
                 renderHistory();
+                // 원격 승리 신호 수신 시 폭죽 재생 (읽기 전용도 동일하게)
+                try {
+                    if (data.winEvent && typeof data.winEvent.ts === 'number' && data.winEvent.ts > SYNC.lastWinTs) {
+                        // 내가 방금 보낸 이벤트와 동일한 ts면(호스트 본인) 한 번만 재생하고 넘어가도 됨
+                        SYNC.lastWinTs = data.winEvent.ts;
+                        // 호스트가 로컬로 이미 한 번 재생했더라도, ts가 다르면 재생
+                        if (data.winEvent.ts !== SYNC.lastEmittedTs) {
+                            const targetBox = (data.winEvent.team === 1) ? document.getElementById('team1Box') : document.getElementById('team2Box');
+                            if (targetBox) launchConfetti(targetBox, { duration: 1800, count: 180 });
+                        }
+                    }
+                } catch (e) { console.warn('[SYNC] winEvent apply error', e); }
+
             } catch (e) {
                 console.warn('[SYNC] apply error', e);
             }
@@ -2263,7 +2289,7 @@
         document.getElementById('btnWin1').addEventListener('click', () => confirmAndApply(1));
         document.getElementById('btnWin2').addEventListener('click', () => confirmAndApply(2));
 
-        function applyResult(winTeam) {
+        async function applyResult(winTeam) {
             const ids1 = new Set(currentTeams.team1), ids2 = new Set(currentTeams.team2);
             if (ids1.size === 0 || ids2.size === 0 || ids1.size !== ids2.size) { alert('먼저 짝수 인원으로 팀을 만들어주세요.'); return; }
             // === 되돌리기 스냅샷(변경 전) 저장 ===
@@ -2358,6 +2384,20 @@
 
 
             saveLocal(); renderRoster(); renderTeams();
+
+            // 승리 이펙트를 모두가 보도록 winEvent 브로드캐스트
+            if (SYNC.enabled && SYNC.roomId) {
+                const ts = Date.now();
+                SYNC.lastEmittedTs = ts; // 내가 쏜 이벤트 ts 기억(중복 방지)
+                try {
+                    await db.collection('rooms').doc(SYNC.roomId).set({
+                        winEvent: { ts, team: winTeam }
+                    }, { merge: true });
+                } catch (e) {
+                    console.warn('[SYNC] winEvent publish error', e);
+                }
+            }
+
             // === undo 가능 상태로 기록 ===
             lastResultUndo = { snapshot: undoSnapshot };
             setUndoEnabled(true);
