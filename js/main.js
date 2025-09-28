@@ -31,7 +31,7 @@ function setReadOnly(on) {
     document.body.classList.toggle('readonly', SYNC.readOnly);
 
     // 모든 조작 요소 잠금(보기/내보내기/검색 몇 개만 허용)
-    const allowIds = new Set(['rosterSearch', 'rosterSearchClear', 'btnCopyTeamsText', 'btnExportXLSX', 'btnShareRoom', 'btnSave']);
+    const allowIds = new Set(['rosterSearch', 'rosterSearchClear', 'btnCopyTeamsText', 'btnExportXLSX', 'btnShareRoom', 'btnSave', 'teamSort']);
     document.querySelectorAll('button, input, select, textarea').forEach(el => {
         const id = el.id || '';
         el.disabled = SYNC.readOnly && !allowIds.has(id);
@@ -99,7 +99,6 @@ function packState() {
             winBonus: +winBonusInput?.value || 30,
             balanceMode: balanceModeSel?.value || 'prefer_line',
             mmrTolerance: +mmrToleranceInput?.value || 120,
-            teamSort: teamSortSel?.value || 'name'
         }
     };
 }
@@ -172,7 +171,6 @@ function applyRemoteState(data) {
             if (winBonusInput && Number.isFinite(+p.winBonus)) winBonusInput.value = String(p.winBonus);
             if (balanceModeSel && p.balanceMode) balanceModeSel.value = p.balanceMode;
             if (mmrToleranceInput && Number.isFinite(+p.mmrTolerance)) mmrToleranceInput.value = String(p.mmrTolerance);
-            if (teamSortSel && p.teamSort) teamSortSel.value = p.teamSort;
             toggleScoringControls();
         }
 
@@ -366,6 +364,9 @@ setUndoEnabled(false);
 
 const BALANCE_MODE_KEY = 'balance_mode_v1';
 const MMR_TOLERANCE_KEY = 'mmr_tolerance_v1';
+const TEAM_SORT_LOCAL_KEY = 'team_sort_local_v1';
+
+let teamSortLocal = 'name';
 
 let rosterSortKey = 'name';   // name | line | score | wl | wr
 let rosterSortAsc = true;     // true: 오름차순, false: 내림차순
@@ -666,7 +667,8 @@ function renderTeams() {
     document.getElementById('avg1').innerHTML = `평균 <span class="${a1 >= a2 ? 'good' : 'bad'}">${a1.toFixed(1)}</span>`;
     document.getElementById('avg2').innerHTML = `평균 <span class="${a2 >= a1 ? 'good' : 'bad'}">${a2.toFixed(1)}</span>`;
 
-    const sortKey = (teamSortSel && teamSortSel.value) || 'name';
+    const sortKey = teamSortLocal || 'name';
+    
     const cmp = (a, b) => {
         if (sortKey === 'name') return a.name.localeCompare(b.name, 'ko');
         if (sortKey === 'line') return linePair(a).localeCompare(linePair(b));
@@ -1426,7 +1428,6 @@ document.getElementById('btnRemakeTeams').addEventListener('click', () => {
     touchSync();
 });
 
-teamSortSel.addEventListener('change', renderTeams);
 
 document.getElementById('btnClearTeams').addEventListener('click', () => {
     if (!requireOwner()) return;
@@ -1679,6 +1680,25 @@ function initPrefs() {
     if (mmrToleranceInput) mmrToleranceInput.addEventListener('change', () => {
         try { localStorage.setItem(MMR_TOLERANCE_KEY, mmrToleranceInput.value); } catch { }
     });
+
+    // ★ 팀 정렬: 로컬(개인별)로만 관리
+    try {
+        const ts = localStorage.getItem(TEAM_SORT_LOCAL_KEY);
+        if (ts && ['name', 'line', 'wr', 'score'].includes(ts)) {
+            teamSortLocal = ts;
+        }
+    } catch { }
+    if (teamSortSel) {
+        // UI 초기값 = 로컬값
+        teamSortSel.value = teamSortLocal;
+        // 변경 시 로컬에만 저장 & 렌더링, 절대 touchSync() 호출하지 않음
+        teamSortSel.addEventListener('change', () => {
+            const v = teamSortSel.value;
+            teamSortLocal = ['name', 'line', 'wr', 'score'].includes(v) ? v : 'name';
+            try { localStorage.setItem(TEAM_SORT_LOCAL_KEY, teamSortLocal); } catch { }
+            renderTeams();
+        });
+    }
 }
 function buildTeamsText() {
     // id → 이름 매핑
