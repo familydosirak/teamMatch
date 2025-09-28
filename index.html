@@ -926,6 +926,7 @@
             return {
                 roster,
                 currentTeams,
+                matchHistory,
                 prefs: {
                     scoringMode: scoringModeSel?.value || 'elo',
                     eloK: +eloKInput?.value || 60,
@@ -937,16 +938,15 @@
             };
         }
 
+
         function applyRemoteState(data) {
             try {
                 if (!data) return;
 
-                // 호스트 판정 및 UI 잠금
                 if (data.ownerUid) {
                     SYNC.isOwner = (SYNC.uid && data.ownerUid === SYNC.uid);
                     setReadOnly(!SYNC.isOwner);
                 }
-
                 if (Array.isArray(data.roster)) {
                     roster = data.roster.map(p => ({
                         id: p.id, name: p.name, score: +p.score || 0,
@@ -954,12 +954,18 @@
                         mainLine: normLine(p.mainLine), subLine: normLine(p.subLine), lastDelta: 0
                     }));
                 }
+
                 if (data.currentTeams) {
                     currentTeams = {
                         team1: Array.isArray(data.currentTeams.team1) ? data.currentTeams.team1.slice() : [],
                         team2: Array.isArray(data.currentTeams.team2) ? data.currentTeams.team2.slice() : []
                     };
                 }
+
+                if (Array.isArray(data.matchHistory)) {
+                    matchHistory = data.matchHistory.slice();
+                }
+
                 if (data.prefs) {
                     const p = data.prefs;
                     if (scoringModeSel && p.scoringMode) scoringModeSel.value = p.scoringMode;
@@ -974,8 +980,12 @@
                 saveLocal();
                 renderRoster();
                 renderTeams();
-            } catch (e) { console.warn('[SYNC] apply error', e); }
+                renderHistory();
+            } catch (e) {
+                console.warn('[SYNC] apply error', e);
+            }
         }
+
 
         const publishState = (() => {
             let t = null;
@@ -1417,7 +1427,10 @@
                 li.className = 'teamRow';
                 li.setAttribute('draggable', 'true');
                 li.dataset.id = p.id;
-
+                // 읽기 전용이면 드래그 시작 금지
+                li.addEventListener('dragstart', (e) => {
+                    if (!canEdit()) { e.preventDefault(); }
+                });
                 const deltaHTML = (typeof p.lastDelta === 'number' && p.lastDelta !== 0)
                     ? `<span class="delta" style="color:${p.lastDelta > 0 ? '#22c55e' : '#ef4444'};">
          ${p.lastDelta > 0 ? '+' : ''}${p.lastDelta}
@@ -1453,7 +1466,16 @@
             const onDragOver = e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
             const onDragEnter = () => boxEl.classList.add('drop-target');
             const onDragLeave = e => { if (!boxEl.contains(e.relatedTarget)) boxEl.classList.remove('drop-target'); };
-            const onDrop = e => { e.preventDefault(); boxEl.classList.remove('drop-target'); const id = e.dataTransfer.getData('text/plain'); if (!id) return; addIdToTeam(teamNo, id); };
+            const onDrop = e => {
+                e.preventDefault(); boxEl.classList.remove('drop-target');
+                if (!canEdit()) {
+                    alert('읽기 전용 모드입니다. (호스트만 조작 가능)');
+                    return;
+                }
+                const id = e.dataTransfer.getData('text/plain');
+                if (!id) return;
+                addIdToTeam(teamNo, id);
+            };
             ulEl.addEventListener('dragover', onDragOver);
             ulEl.addEventListener('dragenter', onDragEnter);
             ulEl.addEventListener('dragleave', onDragLeave);
@@ -1470,6 +1492,7 @@
         rosterBody.addEventListener('dragleave', e => { if (!rosterBody.contains(e.relatedTarget)) rosterBody.classList.remove('drop-target'); });
         rosterBody.addEventListener('drop', e => {
             e.preventDefault(); rosterBody.classList.remove('drop-target');
+            if (!canEdit()) { alert('읽기 전용 모드입니다. (호스트만 조작 가능)'); return; }
             const id = e.dataTransfer.getData('text/plain'); if (!id) return;
             currentTeams.team1 = currentTeams.team1.filter(x => x !== id);
             currentTeams.team2 = currentTeams.team2.filter(x => x !== id);
@@ -1480,6 +1503,7 @@
             // 입력 요소에서 시작하면 드래그 취소 (편집 방해 방지)
             const tag = e.target.tagName;
             if (tag === 'INPUT' || tag === 'SELECT' || tag === 'BUTTON' || tag === 'A') return;
+            if (!canEdit()) { e.preventDefault(); return; }
 
             const tr = e.target.closest('tr[draggable="true"]');
             if (!tr) return;
@@ -1492,6 +1516,12 @@
         });
 
         function addIdToTeam(teamNo, id) {
+
+            if (!canEdit()) {
+                alert('읽기 전용 모드입니다. (호스트만 조작 가능)');
+                return;
+            }
+
             if (!id) return;
             const other = teamNo === 1 ? currentTeams.team2 : currentTeams.team1;
             const target = teamNo === 1 ? currentTeams.team1 : currentTeams.team2;
@@ -1505,6 +1535,7 @@
 
             renderTeams();
             renderRoster();
+            touchSync();
         }
 
         /* ============ 이벤트/액션 ============ */
@@ -1533,6 +1564,7 @@
 
         // 로스터 승패 초기화
         rosterBody.addEventListener('dblclick', e => {
+             if (!canEdit()) return;
             const wl = e.target.closest('.wl-badge'); if (!wl) return;
             const p = roster.find(x => x.id === wl.dataset.id); if (!p) return;
             if (confirm(`"${p.name}"의 승패를 초기화하시겠습니까?`)) {
@@ -2116,6 +2148,8 @@
             renderTeams();
             renderRoster();
             lastTeams = JSON.parse(JSON.stringify(currentTeams));
+
+            touchSync();
         });
 
         document.getElementById('btnRemakeTeams').addEventListener('click', () => {
@@ -2136,6 +2170,8 @@
             renderTeams();
             renderRoster();
             lastTeams = JSON.parse(JSON.stringify(currentTeams));
+
+            touchSync();
         });
 
         teamSortSel.addEventListener('change', renderTeams);
@@ -2149,6 +2185,7 @@
             renderTeams();
             document.getElementById('avg1').textContent = '평균 0';
             document.getElementById('avg2').textContent = '평균 0';
+            touchSync();
         });
 
         // 선택 이동/제거
@@ -2156,11 +2193,13 @@
             const ids = [...document.querySelectorAll('.rowcheck:checked')].map(cb => cb.dataset.id);
             if (!ids.length) { alert('팀에 넣을 인원을 체크하세요.'); return; }
             ids.forEach(id => addIdToTeam(1, id));
+            touchSync();
         });
         document.getElementById('btnToTeam2').addEventListener('click', () => {
             const ids = [...document.querySelectorAll('.rowcheck:checked')].map(cb => cb.dataset.id);
             if (!ids.length) { alert('팀에 넣을 인원을 체크하세요.'); return; }
             ids.forEach(id => addIdToTeam(2, id));
+            touchSync();
         });
         document.getElementById('btnRemoveFromTeams').addEventListener('click', () => {
             const ids = new Set([...document.querySelectorAll('.rowcheck:checked')].map(cb => cb.dataset.id));
@@ -2169,6 +2208,7 @@
             currentTeams.team2 = currentTeams.team2.filter(id => !ids.has(id));
             renderTeams();
             renderRoster();
+            touchSync();
         });
 
         // 승패 반영
@@ -2253,6 +2293,7 @@
             // === undo 가능 상태로 기록 ===
             lastResultUndo = { snapshot: undoSnapshot };
             setUndoEnabled(true);
+            touchSync();
         }
 
         function undoLastResult() {
@@ -2280,6 +2321,7 @@
 
             lastResultUndo = null;     // 단일 단계 되돌리기
             setUndoEnabled(false);
+            touchSync();
         }
 
         if (btnUndo) {
