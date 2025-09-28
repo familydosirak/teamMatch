@@ -1483,6 +1483,11 @@ function confirmAndApply(winTeam) {
     if (!requireOwner()) return;
     const n1 = currentTeams.team1.length, n2 = currentTeams.team2.length;
     if (n1 === 0 || n2 === 0 || n1 !== n2) { alert('먼저 짝수 인원으로 팀을 만들어주세요.'); return; }
+
+    if (typeof WIN_LOCK !== 'undefined' && WIN_LOCK) {
+        return; // 아무 것도 하지 않음
+    }
+    
     const msg = `${winTeam === 1 ? '1팀 승리' : '2팀 승리'}로 점수를 반영할까요?`;
     if (confirm(msg)) applyResult(winTeam);
 }
