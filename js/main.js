@@ -17,6 +17,17 @@ const SYNC = {
     lastWinTs: 0,      // 마지막으로 처리한 winEvent 타임스탬프(중복 재생 방지)
     lastEmittedTs: 0   // 내가 방금 쏜 이벤트 ts(내 화면 중복 방지용)
 };
+
+let WIN_LOCK = false;
+const WIN_COOLDOWN_MS = 1500; // 원하는 쿨다운(ms)
+
+function lockWinButtons(on) {
+    WIN_LOCK = on;
+    const b1 = document.getElementById('btnWin1');
+    const b2 = document.getElementById('btnWin2');
+    if (b1) b1.disabled = on;
+    if (b2) b2.disabled = on;
+}
 // === Host key (ownerKey) : 방을 만든 브라우저만 아는 비밀키로 호스트 판별 고정 ===
 function lsKeyForOwner(roomId) { return `room_owner_key_${roomId}`; }
 function getLocalOwnerKey(roomId) { try { return localStorage.getItem(lsKeyForOwner(roomId)); } catch { return null; } }
@@ -668,7 +679,7 @@ function renderTeams() {
     document.getElementById('avg2').innerHTML = `평균 <span class="${a2 >= a1 ? 'good' : 'bad'}">${a2.toFixed(1)}</span>`;
 
     const sortKey = teamSortLocal || 'name';
-    
+
     const cmp = (a, b) => {
         if (sortKey === 'name') return a.name.localeCompare(b.name, 'ko');
         if (sortKey === 'line') return linePair(a).localeCompare(linePair(b));
@@ -1479,6 +1490,9 @@ document.getElementById('btnWin1').addEventListener('click', () => confirmAndApp
 document.getElementById('btnWin2').addEventListener('click', () => confirmAndApply(2));
 
 async function applyResult(winTeam) {
+    if (WIN_LOCK) return;    // 연타 차단
+    lockWinButtons(true);    // 잠금 시작
+
     const ids1 = new Set(currentTeams.team1), ids2 = new Set(currentTeams.team2);
     if (ids1.size === 0 || ids2.size === 0 || ids1.size !== ids2.size) { alert('먼저 짝수 인원으로 팀을 만들어주세요.'); return; }
     // === 되돌리기 스냅샷(변경 전) 저장 ===
@@ -1570,33 +1584,29 @@ async function applyResult(winTeam) {
 
     saveLocal(); renderRoster(); renderTeams();
 
-    // 승리 이펙트를 모두가 보도록 winEvent 브로드캐스트
+    // 승리 브로드캐스트: 상태 저장 + winEvent를 한 번의 set으로 처리 (삭제 없음)
     if (SYNC.enabled && SYNC.roomId) {
-        await writeRoomNow(); // <- packState() 포함해서 전체 상태 저장
         const ts = Date.now();
         SYNC.lastEmittedTs = ts; // 내가 쏜 이벤트 ts 기억(중복 방지)
         try {
             await db.collection('rooms').doc(SYNC.roomId).set({
-                winEvent: { ts, team: winTeam }
+                ts,
+                expireAt: new Date(ts + 1000 * 60 * 60 * 24 * 7),
+                ...packState(),               // 최신 상태 통째로
+                winEvent: { ts, team: winTeam } // 유지형 이벤트(삭제하지 않음)
             }, { merge: true });
-            setTimeout(async () => {
-                try {
-                    await db.collection('rooms').doc(SYNC.roomId).set({
-                        winEvent: firebase.firestore.FieldValue.delete()
-                    }, { merge: true });
-                } catch (e) {
-                    console.warn('[SYNC] clear winEvent error', e);
-                }
-            }, 3000);
         } catch (e) {
             console.warn('[SYNC] winEvent publish error', e);
         }
     }
 
+
     // === undo 가능 상태로 기록 ===
     lastResultUndo = { snapshot: undoSnapshot };
     setUndoEnabled(true);
     touchSync();
+
+    setTimeout(() => lockWinButtons(false), WIN_COOLDOWN_MS);
 }
 
 function undoLastResult() {
