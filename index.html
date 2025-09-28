@@ -267,37 +267,6 @@
 
     </div>
 
-     <!-- firestore database 연결 -->
-    <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyD03wiOiIKWg1JCv8pDSCzKDxaTY73JjbY",
-            authDomain: "teammaker-9b01e.firebaseapp.com",
-            projectId: "teammaker-9b01e",
-            storageBucket: "teammaker-9b01e.firebasestorage.app",
-            messagingSenderId: "208384601983",
-            appId: "1:208384601983:web:5f2298dd2e06bebee5b44a",
-            measurementId: "G-RWX3W2203B"
-        };
-
-        firebase.initializeApp(firebaseConfig);
-
-        if (location.hostname === 'localhost') {
-            self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-        }
-
-
-        const appCheck = firebase.appCheck();
-
-        appCheck.activate(
-            new firebase.appCheck.ReCaptchaEnterpriseProvider(
-                '6LeJ6tcrAAAAAPiIe8gylieZ4u7GFL4WmCgBWwxy'
-            ), true
-        );
-
-        window.db = firebase.firestore();
-
-    </script>
-
     <script src="./js/main.js"></script>
 </body>
 
