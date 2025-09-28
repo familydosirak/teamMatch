@@ -631,7 +631,9 @@
 
 <body>
     <div class="wrap">
-        <h1>팀 매칭 & 점수 관리</h1>
+        <span style="font-size:28px; font-weight: bold; padding-right: 10px;">팀 매칭 & 점수 관리</span>
+        <button class="btn ghost" id="btnShareRoom" title="같이 보기 링크 생성">공유 링크</button>
+        <span class="muted" id="viewModeBadge" style="white-space:nowrap;"></span>
         <div class="grid">
             <!-- Left: Teams -->
             <div class="panel">
@@ -664,8 +666,6 @@
                                 <option value="score">점수 ▲</option>
                             </select>
                         </label>
-                        <button class="btn ghost" id="btnShareRoom" title="같이 보기 링크 생성">공유 링크</button>
-                        <span class="muted" id="viewModeBadge" style="white-space:nowrap;"></span>
                     </div>
 
                     <div class="teams">
