@@ -884,6 +884,12 @@
 
         /* === [SYNC] 실시간 동기화 + 호스트 전용 편집 === */
         const SYNC = { enabled: false, roomId: null, uid: null, isOwner: false, readOnly: false, writing: false, unsub: null };
+        // === Host key (ownerKey) : 방을 만든 브라우저만 아는 비밀키로 호스트 판별 고정 ===
+        function lsKeyForOwner(roomId) { return `room_owner_key_${roomId}`; }
+        function getLocalOwnerKey(roomId) { try { return localStorage.getItem(lsKeyForOwner(roomId)); } catch { return null; } }
+        function setLocalOwnerKey(roomId, key) { try { localStorage.setItem(lsKeyForOwner(roomId), key); } catch { } }
+        function makeOwnerKey() { return 'ok_' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2); }
+
 
         function getRoomIdFromURL() { const m = location.hash.match(/room=([a-zA-Z0-9_-]{4,})/); return m ? m[1] : null; }
 
@@ -903,12 +909,29 @@
         }
 
         function canEdit() { return !SYNC.enabled || SYNC.isOwner; }
+        function requireOwner() {
+            if (canEdit()) return true;
+            alert('읽기 전용 모드입니다. (호스트만 조작 가능)');
+            return false;
+        }
 
         async function createRoomIfNeeded(roomId) {
             const ref = db.collection('rooms').doc(roomId);
             const snap = await ref.get();
+
             if (!snap.exists) {
-                await ref.set({ ownerUid: SYNC.uid, ts: Date.now(), ...packState() }, { merge: false });
+                const ownerKey = makeOwnerKey();
+                setLocalOwnerKey(roomId, ownerKey);
+                await ref.set({ ownerUid: SYNC.uid, ownerKey, ts: Date.now(), ...packState() }, { merge: false });
+                return;
+            }
+
+            // 레거시 방(예전 문서)에 ownerKey가 없고 내가 원래 ownerUid라면 키 보강
+            const data = snap.data() || {};
+            if (!data.ownerKey && data.ownerUid && SYNC.uid && data.ownerUid === SYNC.uid) {
+                const ownerKey = getLocalOwnerKey(roomId) || makeOwnerKey();
+                setLocalOwnerKey(roomId, ownerKey);
+                await ref.set({ ownerKey }, { merge: true });
             }
         }
 
@@ -916,11 +939,15 @@
             let room = getRoomIdFromURL();
             if (!room) {
                 room = Math.random().toString(36).slice(2, 6) + Math.random().toString(36).slice(2, 6);
-                const url = new URL(location.href); url.hash = 'room=' + room; history.replaceState(null, '', url.toString());
-                if (SYNC.uid) await createRoomIfNeeded(room);
+                const url = new URL(location.href);
+                url.hash = 'room=' + room;
+                history.replaceState(null, '', url.toString());
             }
+            if (SYNC.uid) await createRoomIfNeeded(room);
             return location.href;
         }
+
+
 
         function packState() {
             return {
@@ -943,10 +970,24 @@
             try {
                 if (!data) return;
 
-                if (data.ownerUid) {
-                    SYNC.isOwner = (SYNC.uid && data.ownerUid === SYNC.uid);
+                // 호스트 판정 및 UI 잠금
+                if (data) {
+                    const rid = SYNC.roomId || getRoomIdFromURL();
+                    const localKey = rid ? getLocalOwnerKey(rid) : null;
+
+                    if (data.ownerKey && localKey && data.ownerKey === localKey) {
+                        SYNC.isOwner = true;
+                    } else if (data.ownerKey && localKey && data.ownerKey !== localKey) {
+                        SYNC.isOwner = false;
+                    } else if (data.ownerUid && SYNC.uid) {
+                        SYNC.isOwner = (data.ownerUid === SYNC.uid);
+                    } else {
+                        SYNC.isOwner = false;
+                    }
+
                     setReadOnly(!SYNC.isOwner);
                 }
+
                 if (Array.isArray(data.roster)) {
                     roster = data.roster.map(p => ({
                         id: p.id, name: p.name, score: +p.score || 0,
@@ -1449,6 +1490,7 @@
                 `;
 
                 li.addEventListener('dragstart', e => {
+                    if (!canEdit()) { e.preventDefault(); return; }
                     e.dataTransfer.setData('text/plain', p.id);
                     e.dataTransfer.effectAllowed = 'move';
                 });
@@ -1467,11 +1509,8 @@
             const onDragEnter = () => boxEl.classList.add('drop-target');
             const onDragLeave = e => { if (!boxEl.contains(e.relatedTarget)) boxEl.classList.remove('drop-target'); };
             const onDrop = e => {
+                if (!canEdit()) { e.preventDefault(); return; }
                 e.preventDefault(); boxEl.classList.remove('drop-target');
-                if (!canEdit()) {
-                    alert('읽기 전용 모드입니다. (호스트만 조작 가능)');
-                    return;
-                }
                 const id = e.dataTransfer.getData('text/plain');
                 if (!id) return;
                 addIdToTeam(teamNo, id);
@@ -1492,18 +1531,19 @@
         rosterBody.addEventListener('dragleave', e => { if (!rosterBody.contains(e.relatedTarget)) rosterBody.classList.remove('drop-target'); });
         rosterBody.addEventListener('drop', e => {
             e.preventDefault(); rosterBody.classList.remove('drop-target');
-            if (!canEdit()) { alert('읽기 전용 모드입니다. (호스트만 조작 가능)'); return; }
+            if (!canEdit()) { e.preventDefault(); return; }
             const id = e.dataTransfer.getData('text/plain'); if (!id) return;
             currentTeams.team1 = currentTeams.team1.filter(x => x !== id);
             currentTeams.team2 = currentTeams.team2.filter(x => x !== id);
             renderTeams();
             renderRoster();
+            touchSync();
         });
         rosterBody.addEventListener('dragstart', e => {
+            if (!canEdit()) { e.preventDefault(); return; }
             // 입력 요소에서 시작하면 드래그 취소 (편집 방해 방지)
             const tag = e.target.tagName;
             if (tag === 'INPUT' || tag === 'SELECT' || tag === 'BUTTON' || tag === 'A') return;
-            if (!canEdit()) { e.preventDefault(); return; }
 
             const tr = e.target.closest('tr[draggable="true"]');
             if (!tr) return;
@@ -1516,12 +1556,7 @@
         });
 
         function addIdToTeam(teamNo, id) {
-
-            if (!canEdit()) {
-                alert('읽기 전용 모드입니다. (호스트만 조작 가능)');
-                return;
-            }
-
+            if (!requireOwner()) return;
             if (!id) return;
             const other = teamNo === 1 ? currentTeams.team2 : currentTeams.team1;
             const target = teamNo === 1 ? currentTeams.team1 : currentTeams.team2;
@@ -1564,7 +1599,7 @@
 
         // 로스터 승패 초기화
         rosterBody.addEventListener('dblclick', e => {
-             if (!canEdit()) return;
+            if (!canEdit()) return;
             const wl = e.target.closest('.wl-badge'); if (!wl) return;
             const p = roster.find(x => x.id === wl.dataset.id); if (!p) return;
             if (confirm(`"${p.name}"의 승패를 초기화하시겠습니까?`)) {
@@ -2133,6 +2168,7 @@
         }
 
         document.getElementById('btnMakeTeams').addEventListener('click', () => {
+            if (!requireOwner()) return;
             const ids = [...document.querySelectorAll('.rowcheck:checked')].map(cb => cb.dataset.id);
             if (ids.length < 2 || ids.length % 2 !== 0) { alert('짝수 인원을 선택하세요. (현재 ' + ids.length + '명)'); return; }
             const players = ids.map(id => roster.find(p => p.id === id)).filter(Boolean);
@@ -2153,6 +2189,7 @@
         });
 
         document.getElementById('btnRemakeTeams').addEventListener('click', () => {
+            if (!requireOwner()) return;
             const all = [...currentTeams.team1, ...currentTeams.team2];
             if (all.length < 2 || all.length % 2 !== 0) {
                 alert('먼저 짝수 인원으로 팀을 만들어주세요. (현재 ' + all.length + '명)');
@@ -2177,7 +2214,7 @@
         teamSortSel.addEventListener('change', renderTeams);
 
         document.getElementById('btnClearTeams').addEventListener('click', () => {
-
+            if (!requireOwner()) return;
             roster.forEach(p => p.lastDelta = 0);
 
             currentTeams = { team1: [], team2: [] };
@@ -2190,18 +2227,21 @@
 
         // 선택 이동/제거
         document.getElementById('btnToTeam1').addEventListener('click', () => {
+            if (!requireOwner()) return;
             const ids = [...document.querySelectorAll('.rowcheck:checked')].map(cb => cb.dataset.id);
             if (!ids.length) { alert('팀에 넣을 인원을 체크하세요.'); return; }
             ids.forEach(id => addIdToTeam(1, id));
             touchSync();
         });
         document.getElementById('btnToTeam2').addEventListener('click', () => {
+            if (!requireOwner()) return;
             const ids = [...document.querySelectorAll('.rowcheck:checked')].map(cb => cb.dataset.id);
             if (!ids.length) { alert('팀에 넣을 인원을 체크하세요.'); return; }
             ids.forEach(id => addIdToTeam(2, id));
             touchSync();
         });
         document.getElementById('btnRemoveFromTeams').addEventListener('click', () => {
+            if (!requireOwner()) return;
             const ids = new Set([...document.querySelectorAll('.rowcheck:checked')].map(cb => cb.dataset.id));
             if (!ids.size) { alert('팀에서 제거할 인원을 체크하세요.'); return; }
             currentTeams.team1 = currentTeams.team1.filter(id => !ids.has(id));
@@ -2213,6 +2253,7 @@
 
         // 승패 반영
         function confirmAndApply(winTeam) {
+            if (!requireOwner()) return;
             const n1 = currentTeams.team1.length, n2 = currentTeams.team2.length;
             if (n1 === 0 || n2 === 0 || n1 !== n2) { alert('먼저 짝수 인원으로 팀을 만들어주세요.'); return; }
             const msg = `${winTeam === 1 ? '1팀 승리' : '2팀 승리'}로 점수를 반영할까요?`;
@@ -2297,6 +2338,7 @@
         }
 
         function undoLastResult() {
+            if (!requireOwner()) return;
             if (!lastResultUndo || !lastResultUndo.snapshot || !lastResultUndo.snapshot.length) {
                 alert('되돌릴 결과가 없습니다.');
                 return;
@@ -2589,8 +2631,12 @@
             SYNC.uid = user.uid;
 
             const rid = getRoomIdFromURL();
-            if (rid && !SYNC.enabled) startRoomSync(rid);
+            if (rid) {
+                await createRoomIfNeeded(rid); // ownerKey 보강
+                if (!SYNC.enabled) startRoomSync(rid);
+            }
         });
+
 
         document.getElementById('btnShareRoom')?.addEventListener('click', async () => {
             if (!firebase.auth().currentUser) {
