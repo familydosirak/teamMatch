@@ -860,6 +860,8 @@
                         <span class="chip">잠실고졸장재혁</span>
                         <span class="chip">Manza</span>
                         <span class="chip">진규호</span>
+                        <span class="chip">Rln</span>
+                        <span class="chip">샤방샤방샤코</span>
                         <span class="chip">KKiinKKiin</span>
                         <span class="chip">금성</span>
                         <span class="chip">김밥</span>
@@ -932,7 +934,13 @@
             if (!snap.exists) {
                 const ownerKey = makeOwnerKey();
                 setLocalOwnerKey(roomId, ownerKey);
-                await ref.set({ ownerUid: SYNC.uid, ownerKey, ts: Date.now(), ...packState() }, { merge: false });
+                await ref.set({
+                    ownerUid: SYNC.uid,
+                    ownerKey,
+                    ts: Date.now(),
+                    expireAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7), // 지금+7일
+                    ...packState()
+                }, { merge: false });
                 return;
             }
 
@@ -979,6 +987,19 @@
         function applyRemoteState(data) {
             try {
                 if (!data) return;
+
+                // 만료 체크: expireAt < now면 모두 읽기전용
+                const now = new Date();
+                const exp = data.expireAt?.toDate ? data.expireAt.toDate() : null;
+                if (exp && exp < now) {
+                    // 호스트 뱃지 대신 '만료됨' 표시
+                    SYNC.isOwner = false;
+                    setReadOnly(true);
+                    const badge = document.getElementById('viewModeBadge');
+                    if (badge) badge.textContent = '만료됨';
+                    // 그래도 데이터는 렌더되도록 아래 로직 계속 진행
+                }
+
                 if (data.winEvent && typeof data.winEvent.ts === 'number' && SYNC.lastWinTs === 0) {
                     SYNC.lastWinTs = data.winEvent.ts;
                 }
@@ -1063,7 +1084,11 @@
                 t = setTimeout(async () => {
                     try {
                         SYNC.writing = true;
-                        await db.collection('rooms').doc(SYNC.roomId).set({ ts: Date.now(), ...packState() }, { merge: true });
+                        await db.collection('rooms').doc(SYNC.roomId).set({
+                            ts: Date.now(),
+                            expireAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7), // 매 활동 시 7일 뒤로 연장
+                            ...packState()
+                        }, { merge: true });
                     } catch (e) { console.warn('[SYNC] publish error', e); }
                     finally { setTimeout(() => { SYNC.writing = false; }, 40); }
                 }, 60);
@@ -1076,11 +1101,22 @@
             if (SYNC.enabled) return;
             SYNC.enabled = true;
             SYNC.roomId = roomId;
-            db.collection('rooms').doc(roomId).onSnapshot(snap => {
+            if (SYNC.unsub) { try { SYNC.unsub(); } catch { } SYNC.unsub = null; }
+
+            SYNC.unsub = db.collection('rooms').doc(roomId).onSnapshot(snap => {
+                if (!snap.exists) {
+                    // 방이 삭제됨 → 읽기전용으로 잠그고 배지 표시
+                    SYNC.isOwner = false;
+                    setReadOnly(true);
+                    const badge = document.getElementById('viewModeBadge');
+                    if (badge) badge.textContent = '방이 삭제됨';
+                    return;
+                }
                 const data = snap.data();
                 if (data) applyRemoteState(data);
             });
         }
+
 
         const STORAGE_KEY = 'team_roster_v1', WIN_BONUS_KEY = 'win_bonus_v1', MODE_KEY = 'scoring_mode_v1', ELO_K_KEY = 'elo_k_v1';
         let roster = [];
@@ -1119,6 +1155,26 @@
         }
 
         /* ============ 저장/로드 ============ */
+
+        async function cleanupMyExpiredRooms() {
+            const me = SYNC.uid;
+            if (!me) return;
+
+            try {
+                const now = new Date();
+                const snap = await db.collection('rooms').where('ownerUid', '==', me).get();
+                const batch = db.batch();
+                snap.forEach(doc => {
+                    const d = doc.data() || {};
+                    const exp = d.expireAt?.toDate ? d.expireAt.toDate() : null;
+                    if (exp && exp < now) batch.delete(doc.ref);
+                });
+                await batch.commit();
+            } catch (e) {
+                console.warn('[CLEANUP] failed:', e);
+            }
+        }
+
         function saveLocal() { localStorage.setItem(STORAGE_KEY, JSON.stringify(roster)); }
         function loadLocal() {
             try {
@@ -2697,12 +2753,29 @@
             }
             SYNC.uid = user.uid;
 
+            cleanupMyExpiredRooms();
+
             const rid = getRoomIdFromURL();
             if (rid) {
                 await createRoomIfNeeded(rid); // ownerKey 보강
                 if (!SYNC.enabled) startRoomSync(rid);
             }
         });
+
+        async function tryDeleteRoomOnExit() {
+            if (SYNC.isOwner && SYNC.roomId) {
+                try {
+                    await db.collection('rooms').doc(SYNC.roomId).delete();
+                } catch (e) {
+                    // 오프라인/중복삭제 등 실패 가능 — 무시
+                }
+            }
+        }
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') tryDeleteRoomOnExit();
+        });
+        window.addEventListener('beforeunload', () => { tryDeleteRoomOnExit(); });
+
 
 
         document.getElementById('btnShareRoom')?.addEventListener('click', async () => {
