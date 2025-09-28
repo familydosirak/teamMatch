@@ -893,6 +893,7 @@
             readOnly: false,
             writing: false,
             unsub: null,
+            lastLocalTs: 0,
             lastWinTs: 0,      // 마지막으로 처리한 winEvent 타임스탬프(중복 재생 방지)
             lastEmittedTs: 0   // 내가 방금 쏜 이벤트 ts(내 화면 중복 방지용)
         };
@@ -987,19 +988,21 @@
         function applyRemoteState(data) {
             try {
                 if (!data) return;
+                try {
+                    if (data.winEvent && typeof data.winEvent.ts === 'number' && data.winEvent.ts > SYNC.lastWinTs) {
+                        SYNC.lastWinTs = data.winEvent.ts;
+                        if (data.winEvent.ts !== SYNC.lastEmittedTs) {
+                            const targetBox = (data.winEvent.team === 1) ? document.getElementById('team1Box') : document.getElementById('team2Box');
+                            if (targetBox) launchConfetti(targetBox, { duration: 1800, count: 180 });
+                        }
+                    }
+                } catch (e) { console.warn('[SYNC] winEvent apply error', e); }
 
-                // 만료 체크: expireAt < now면 모두 읽기전용
-                const now = new Date();
-                const exp = data.expireAt?.toDate ? data.expireAt.toDate() : null;
-                if (exp && exp < now) {
-                    // 호스트 뱃지 대신 '만료됨' 표시
-                    SYNC.isOwner = false;
-                    setReadOnly(true);
-                    const badge = document.getElementById('viewModeBadge');
-                    if (badge) badge.textContent = '만료됨';
-                    // 그래도 데이터는 렌더되도록 아래 로직 계속 진행
+                // 1) 내가 더 최신 상태를 방금 저장했다면(로컬 시각 기준) 구식 스냅샷은 무시
+                if (typeof data.ts === 'number' && SYNC.lastLocalTs && data.ts < SYNC.lastLocalTs) {
+                    return; // 이 스냅샷은 이전 버전이므로 상태 덮어쓰지 않음 (이펙트는 위에서 이미 처리)
                 }
-
+                
                 if (data.winEvent && typeof data.winEvent.ts === 'number' && SYNC.lastWinTs === 0) {
                     SYNC.lastWinTs = data.winEvent.ts;
                 }
@@ -1095,28 +1098,39 @@
             };
         })();
 
+        async function writeRoomNow(extra = {}) {
+            if (!SYNC.enabled || !SYNC.roomId) return;
+            const now = Date.now();
+            SYNC.lastLocalTs = now;
+            // 활동 시 만료 7일 연장
+            const payload = {
+                ts: now,
+                expireAt: new Date(now + 1000 * 60 * 60 * 24 * 7),
+                ...packState(),
+                ...extra
+            };
+            try {
+                SYNC.writing = true;
+                await db.collection('rooms').doc(SYNC.roomId).set(payload, { merge: true });
+            } catch (e) {
+                console.warn('[SYNC] writeRoomNow error', e);
+            } finally {
+                setTimeout(() => { SYNC.writing = false; }, 40);
+            }
+        }
+
+
         function touchSync() { publishState(); }
 
         function startRoomSync(roomId) {
             if (SYNC.enabled) return;
             SYNC.enabled = true;
             SYNC.roomId = roomId;
-            if (SYNC.unsub) { try { SYNC.unsub(); } catch { } SYNC.unsub = null; }
-
-            SYNC.unsub = db.collection('rooms').doc(roomId).onSnapshot(snap => {
-                if (!snap.exists) {
-                    // 방이 삭제됨 → 읽기전용으로 잠그고 배지 표시
-                    SYNC.isOwner = false;
-                    setReadOnly(true);
-                    const badge = document.getElementById('viewModeBadge');
-                    if (badge) badge.textContent = '방이 삭제됨';
-                    return;
-                }
+            db.collection('rooms').doc(roomId).onSnapshot(snap => {
                 const data = snap.data();
                 if (data) applyRemoteState(data);
             });
         }
-
 
         const STORAGE_KEY = 'team_roster_v1', WIN_BONUS_KEY = 'win_bonus_v1', MODE_KEY = 'scoring_mode_v1', ELO_K_KEY = 'elo_k_v1';
         let roster = [];
@@ -1155,26 +1169,6 @@
         }
 
         /* ============ 저장/로드 ============ */
-
-        async function cleanupMyExpiredRooms() {
-            const me = SYNC.uid;
-            if (!me) return;
-
-            try {
-                const now = new Date();
-                const snap = await db.collection('rooms').where('ownerUid', '==', me).get();
-                const batch = db.batch();
-                snap.forEach(doc => {
-                    const d = doc.data() || {};
-                    const exp = d.expireAt?.toDate ? d.expireAt.toDate() : null;
-                    if (exp && exp < now) batch.delete(doc.ref);
-                });
-                await batch.commit();
-            } catch (e) {
-                console.warn('[CLEANUP] failed:', e);
-            }
-        }
-
         function saveLocal() { localStorage.setItem(STORAGE_KEY, JSON.stringify(roster)); }
         function loadLocal() {
             try {
@@ -2435,11 +2429,11 @@
             // 너무 길어지지 않게 제한(예: 최근 100경기만 보관)
             if (matchHistory.length > 100) matchHistory.shift();
 
-            // 원격 문서에도 반영
-            touchSync();
-
-
             saveLocal(); renderRoster(); renderTeams();
+
+            if (SYNC.enabled && SYNC.roomId) {
+                await writeRoomNow(); // <- packState() 포함해서 전체 상태 저장
+            }
 
             // 승리 이펙트를 모두가 보도록 winEvent 브로드캐스트
             if (SYNC.enabled && SYNC.roomId) {
@@ -2753,29 +2747,12 @@
             }
             SYNC.uid = user.uid;
 
-            cleanupMyExpiredRooms();
-
             const rid = getRoomIdFromURL();
             if (rid) {
                 await createRoomIfNeeded(rid); // ownerKey 보강
                 if (!SYNC.enabled) startRoomSync(rid);
             }
         });
-
-        async function tryDeleteRoomOnExit() {
-            if (SYNC.isOwner && SYNC.roomId) {
-                try {
-                    await db.collection('rooms').doc(SYNC.roomId).delete();
-                } catch (e) {
-                    // 오프라인/중복삭제 등 실패 가능 — 무시
-                }
-            }
-        }
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'hidden') tryDeleteRoomOnExit();
-        });
-        window.addEventListener('beforeunload', () => { tryDeleteRoomOnExit(); });
-
 
 
         document.getElementById('btnShareRoom')?.addEventListener('click', async () => {
