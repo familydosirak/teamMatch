@@ -1058,6 +1058,7 @@
 
         const STORAGE_KEY = 'team_roster_v1', WIN_BONUS_KEY = 'win_bonus_v1', MODE_KEY = 'scoring_mode_v1', ELO_K_KEY = 'elo_k_v1';
         let roster = [];
+        let matchHistory = [];
         let currentTeams = { team1: [], team2: [] };
         let teamHistory = []; const HISTORY_LIMIT = 5;
         let lastTeams = { team1: [], team2: [] };
@@ -2330,6 +2331,32 @@
                     if (in2) { if (winTeam === 2) p.wins = (p.wins || 0) + 1; else p.losses = (p.losses || 0) + 1; }
                 });
             }
+            // 점수 변화 수집(플레이어별 delta)
+            const deltaById = {};
+            [...ids1, ...ids2].forEach(id => {
+                const p = roster.find(x => x.id === id);
+                if (p) deltaById[id] = p.lastDelta || 0;
+            });
+
+            // 히스토리 한 건 추가
+            matchHistory.push({
+                ts: Date.now(),
+                roomId: SYNC.roomId || null,
+                team1: Array.from(ids1),
+                team2: Array.from(ids2),
+                winner: winTeam,     // 1 또는 2
+                mode: (scoringModeSel && scoringModeSel.value) || 'fixed',
+                eloK: +eloKInput?.value || 60,
+                winBonus: +winBonusInput?.value || 30,
+                deltaById
+            });
+            // 너무 길어지지 않게 제한(예: 최근 100경기만 보관)
+            if (matchHistory.length > 100) matchHistory.shift();
+
+            // 원격 문서에도 반영
+            touchSync();
+
+
             saveLocal(); renderRoster(); renderTeams();
             // === undo 가능 상태로 기록 ===
             lastResultUndo = { snapshot: undoSnapshot };
