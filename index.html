@@ -11,48 +11,9 @@
     <script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
-
-
-    <!-- firestore database 연결 -->
-    <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyD03wiOiIKWg1JCv8pDSCzKDxaTY73JjbY",
-            authDomain: "teammaker-9b01e.firebaseapp.com",
-            projectId: "teammaker-9b01e",
-            storageBucket: "teammaker-9b01e.firebasestorage.app",
-            messagingSenderId: "208384601983",
-            appId: "1:208384601983:web:5f2298dd2e06bebee5b44a",
-            measurementId: "G-RWX3W2203B"
-        };
-        firebase.initializeApp(firebaseConfig);
-
-
-        // ===== [App Check] reCAPTCHA 활성화 =====
-        // 로컬 개발 중에는 디버그 토큰 허용 (배포 시 이 줄 삭제/주석)
-        if (location.hostname === 'localhost') {
-            self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-        }
-
-        // Enterprise용 Provider 생성
-        const provider =
-            new firebase.appCheck.ReCaptchaEnterpriseProvider('6LeJ6tcrAAAAAPiIe8gylieZ4u7GFL4WmCgBWwxy');
-
-        firebase.appCheck().activate(provider, true);
-
-
-        firebase.appCheck().getToken(true).then(t => {
-            console.log('[AppCheck token]', t.token.slice(0, 20) + '...');
-        }).catch(console.error);
-
-
-        const db = firebase.firestore();
-
-    </script>
-
-
 
 </head>
 
@@ -305,6 +266,37 @@
         </footer>
 
     </div>
+
+     <!-- firestore database 연결 -->
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyD03wiOiIKWg1JCv8pDSCzKDxaTY73JjbY",
+            authDomain: "teammaker-9b01e.firebaseapp.com",
+            projectId: "teammaker-9b01e",
+            storageBucket: "teammaker-9b01e.firebasestorage.app",
+            messagingSenderId: "208384601983",
+            appId: "1:208384601983:web:5f2298dd2e06bebee5b44a",
+            measurementId: "G-RWX3W2203B"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+
+        if (location.hostname === 'localhost') {
+            self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+        }
+
+
+        const appCheck = firebase.appCheck();
+
+        appCheck.activate(
+            new firebase.appCheck.ReCaptchaEnterpriseProvider(
+                '6LeJ6tcrAAAAAPiIe8gylieZ4u7GFL4WmCgBWwxy' // ← 네 site key
+            ), true
+        );
+
+        window.db = firebase.firestore();
+
+    </script>
 
     <script src="./js/main.js"></script>
 </body>
