@@ -274,6 +274,19 @@ function maybeCreateShareButton() {
     // viewModeBadge 앞에 삽입
     badge.insertAdjacentElement('beforebegin', btn);
 
+    // 👉 버튼 오른쪽 가이드 생성
+    let guide = document.getElementById('shareGuide');
+    if (!guide) {
+        guide = document.createElement('span');
+        guide.id = 'shareGuide';
+        guide.className = 'muted';
+        guide.style.whiteSpace = 'nowrap';
+        guide.style.marginLeft = '8px';
+        guide.textContent = '링크를 공유하면 함께 화면을 볼 수 있어요.';
+        btn.insertAdjacentElement('afterend', guide);
+    }
+
+
     // els 참조 갱신(기존 코드의 이벤트 바인딩에서 씀)
     els.btnShareRoom = btn;
 }
@@ -377,6 +390,22 @@ function makeWinHandler(confirmAndApply, team) {
         throttled();
     };
 }
+
+function updateShareHint() {
+    const hint = document.getElementById('shareHint');
+    const guide = document.getElementById('shareGuide');
+
+    const hasHashRoom = typeof location?.hash === 'string' && location.hash.includes('room=');
+    const hasSyncRoom = !!(window.SYNC && (SYNC.roomId || SYNC.enabled));
+    const inRoom = !!(getRoomIdFromURL() || hasHashRoom || hasSyncRoom);
+    const show = (SYNC_MODE && !inRoom);
+
+    if (hint) hint.style.display = show ? '' : 'none';
+    if (guide) guide.style.display = show ? '' : 'none';
+    if (show && els.viewModeBadge) els.viewModeBadge.textContent = '';
+
+}
+
 
 
 
@@ -749,10 +778,33 @@ function registerEventHandlers() {
     // 공유
     els.btnShareRoom?.addEventListener('click', async () => {
         if (!SYNC_MODE) { alert('현재 동기화 기능이 비활성화된 로컬 모드입니다.'); return; }
+
         if (!window.firebase?.auth?.().currentUser) {
-            try { await window.firebase.auth().signInAnonymously(); } catch { }
+            try {
+                const cred = await window.firebase.auth().signInAnonymously();
+                if (cred?.user?.uid) SYNC.uid = cred.user.uid;
+            } catch { }
+        } else {
+            try {
+                const uid = window.firebase.auth().currentUser?.uid;
+                if (uid) SYNC.uid = uid;
+            } catch { }
         }
+
         const url = await ensureRoomAndGetUrl();
+        document.getElementById('shareHint')?.style.setProperty('display', 'none');
+        document.getElementById('shareGuide')?.style.setProperty('display', 'none');
+        updateShareHint();              // 1차: 즉시
+        setTimeout(updateShareHint, 0); // 2차: 해시/상태 반영 후 재확인
+        const rid = getRoomIdFromURL();
+        if (rid) {
+            await createRoomIfNeeded(rid);
+            startRoomSync(rid);
+            if (els.viewModeBadge) els.viewModeBadge.textContent = '호스트';
+        }
+
+
+
         try { await navigator.clipboard.writeText(url); alert('공유 링크를 복사했습니다:\n' + url); }
         catch { prompt('이 URL을 복사하세요', url); }
     });
@@ -829,9 +881,12 @@ export async function init() {
 
     renderRoster(); renderTeams();
     maybeCreateShareButton();
+    updateShareHint();
     bindDragAndDrop();
     registerEventHandlers();
     toggleScoringControls();
+
+    window.addEventListener('hashchange', updateShareHint);
 
     // Firebase Auth + 방 구독
     if (SYNC_MODE && window.firebase?.auth) {
