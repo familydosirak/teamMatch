@@ -282,7 +282,7 @@ function maybeCreateShareButton() {
         guide.className = 'muted';
         guide.style.whiteSpace = 'nowrap';
         guide.style.marginLeft = '8px';
-        guide.textContent = '링크를 공유하면 함께 화면을 볼 수 있어요.';
+        guide.textContent = '방 공유 버튼을 누른 후 링크를 공유하면 함께 화면을 볼 수 있어요.';
         btn.insertAdjacentElement('afterend', guide);
     }
 
