@@ -89,18 +89,18 @@ export function renderRoster() {
         const highlighted = termRE ? safe.replace(termRE, '<mark>$1</mark>') : safe;
 
         tr.innerHTML = `
-      <td><input type="checkbox" data-id="${p.id}" class="rowcheck"></td>
-      <td class="cell-name" data-id="${p.id}" title="더블클릭으로 이름 수정">${highlighted}</td>
-      <td class="cell-line">
-        <select class="line-select cell-line1" data-id="${p.id}" title="주 라인">${['T', 'J', 'M', 'B', 'S', 'A'].map(k => `<option value="${k}" ${p1 === k ? 'selected' : ''}>${k}</option>`).join('')}</select>
-        <span class="line-slash">/</span>
-        <select class="line-select cell-line2" data-id="${p.id}" title="부 라인">${['T', 'J', 'M', 'B', 'S', 'A'].map(k => `<option value="${k}" ${p2 === k ? 'selected' : ''}>${k}</option>`).join('')}</select>
-      </td>
-      <td class="tabnum"><input data-id="${p.id}" class="cell-score" type="number" value="${p.score}" /></td>
-      <td class="tabnum"><input data-id="${p.id}" class="cell-games" type="number" min="0" value="${p.games || 0}" /></td>
-      <td class="tabnum"><span class="wl-badge" data-id="${p.id}">${p.wins || 0}/${p.losses || 0}</span></td>
-      <td class="tabnum"><span class="wr-badge ${wrClass(rate)}" data-id="${p.id}">${rate}%</span></td>
-    `;
+            <td><input type="checkbox" data-id="${p.id}" class="rowcheck"></td>
+            <td class="cell-name" data-id="${p.id}" title="더블클릭으로 이름 수정">${highlighted}</td>
+            <td class="cell-line">
+                <select class="line-select cell-line1" data-id="${p.id}" title="주 라인">${['T', 'J', 'M', 'B', 'S', 'A'].map(k => `<option value="${k}" ${p1 === k ? 'selected' : ''}>${k}</option>`).join('')}</select>
+                <span class="line-slash">/</span>
+                <select class="line-select cell-line2" data-id="${p.id}" title="부 라인">${['T', 'J', 'M', 'B', 'S', 'A'].map(k => `<option value="${k}" ${p2 === k ? 'selected' : ''}>${k}</option>`).join('')}</select>
+            </td>
+            <td class="tabnum"><input data-id="${p.id}" class="cell-score" type="number" value="${p.score}" /></td>
+            <td class="tabnum"><input data-id="${p.id}" class="cell-games" type="number" min="0" value="${p.games || 0}" /></td>
+            <td class="tabnum"><span class="wl-badge" data-id="${p.id}">${p.wins || 0}/${p.losses || 0}</span></td>
+            <td class="tabnum"><span class="wr-badge ${wrClass(rate)}" data-id="${p.id}">${rate}%</span></td>
+        `;
         els.rosterBody.appendChild(tr);
     });
     if (els.checkAll) els.checkAll.checked = false;
@@ -133,11 +133,11 @@ export function renderTeams() {
         const deltaHTML = (typeof p.lastDelta === 'number' && p.lastDelta !== 0)
             ? `<span class="delta" style="color:${p.lastDelta > 0 ? '#22c55e' : '#ef4444'};">${p.lastDelta > 0 ? '+' : ''}${p.lastDelta}</span>` : '';
         li.innerHTML = `
-      <span class="cell-name" title="${p.name}">${p.name}</span>
-      <span class="cell-line tabnum">${linePair(p)}</span>
-      <span class="cell-wr tabnum ${wrClass(wr)}">${wr}%</span>
-      <span class="cell-score tabnum"><span class="score-num">${p.score}</span>${deltaHTML}</span>
-    `;
+            <span class="cell-name" title="${p.name}">${p.name}</span>
+            <span class="cell-line tabnum">${linePair(p)}</span>
+            <span class="cell-wr tabnum ${wrClass(wr)}">${wr}%</span>
+            <span class="cell-score tabnum"><span class="score-num">${p.score}</span>${deltaHTML}</span>
+        `;
         li.addEventListener('dragstart', e => {
             if (!canEdit()) { e.preventDefault(); return; }
             e.dataTransfer.setData('text/plain', p.id);
