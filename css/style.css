@@ -600,8 +600,21 @@ mark {
 }
 
 #managePanel.drop-target {
-    outline: 3px dashed #3b82f6;         /* 파란 점선 */
+    outline: 3px dashed #3b82f6;
+    /* 파란 점선 */
     outline-offset: -4px;
     background-color: rgba(59, 130, 246, 0.06);
     transition: background-color .12s ease, outline-color .12s ease;
+}
+
+.ver-badge {
+    display: inline-block;
+    /* margin-left: 8px; */
+    padding: 4px 8px;
+    font-size: 12px;
+    line-height: 1;
+    color: #8b8b8b;
+    border: 1px solid #454545;
+    border-radius: 10px;
+    vertical-align: middle;
 }
