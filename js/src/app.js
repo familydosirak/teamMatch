@@ -1,5 +1,5 @@
 // src/app.js
-import { SYNC_MODE, PLACEMENT_MULTIPLIER, APP_VERSION, DISPLAY_VERSION } from './config.js';
+import { SYNC_MODE, PLACEMENT_MULTIPLIER, APP_VERSION, DISPLAY_VERSION, WIN_DEBOUNCE_MS, WIN_THROTTLE_MS } from './config.js';
 import {
     SYNC, roster, setRoster, currentTeams, setCurrentTeams,
     lastTeams, setLastTeams, lastResultUndo, setLastResultUndo,
@@ -325,6 +325,60 @@ function importRosterFromFile(file) {
     alert('지원하지 않는 형식입니다. .txt, .json 또는 .xlsx 파일을 사용하세요.');
 }
 
+/* ===== util: debounce / throttle for win buttons ===== */
+function debounce(fn, wait) {
+    let t = null;
+    return function (...args) {
+        clearTimeout(t);
+        t = setTimeout(() => fn.apply(this, args), wait);
+    };
+}
+
+function throttle(fn, wait, { leading = true, trailing = false } = {}) {
+    let last = 0, t = null, lastArgs = null, lastThis = null;
+
+    const invoke = () => {
+        last = Date.now();
+        t = null;
+        fn.apply(lastThis, lastArgs);
+        lastArgs = lastThis = null;
+    };
+
+    return function (...args) {
+        const now = Date.now();
+        if (!last && !leading) last = now;
+        const remaining = wait - (now - last);
+        lastArgs = args; lastThis = this;
+
+        if (remaining <= 0 || remaining > wait) {
+            if (t) { clearTimeout(t); t = null; }
+            invoke();
+        } else if (!t && trailing) {
+            t = setTimeout(invoke, remaining);
+        }
+    };
+}
+
+/* 승리 버튼용 하이브리드 핸들러(짧은 디바운스 + 쿨다운 스로틀) */
+function makeWinHandler(confirmAndApply, team) {
+    // 더블클릭 같은 초단기 버스트는 디바운스로 1회로 묶기
+    const debounced = debounce(() => confirmAndApply(team), WIN_DEBOUNCE_MS);
+
+    // confetti/락 타이밍(약 1.5s)에 맞춰 스로틀. 추가 클릭은 버림.
+    const throttled = throttle(() => {
+        // 외부 락이 이미 걸려 있으면 그냥 무시
+        if (typeof isWinLocked === 'function' && isWinLocked()) return;
+        debounced();
+    }, WIN_THROTTLE_MS, { leading: true, trailing: false });
+
+    // 최종 클릭 핸들러
+    return function () {
+        if (typeof isWinLocked === 'function' && isWinLocked()) return;
+        throttled();
+    };
+}
+
+
 
 /** ===== 이벤트 바인딩 ===== */
 function registerEventHandlers() {
@@ -592,8 +646,8 @@ function registerEventHandlers() {
         }
     }
 
-    els.btnWin1.addEventListener('click', () => confirmAndApply(1));
-    els.btnWin2.addEventListener('click', () => confirmAndApply(2));
+    els.btnWin1.addEventListener('click', makeWinHandler(confirmAndApply, 1));
+    els.btnWin2.addEventListener('click', makeWinHandler(confirmAndApply, 2));
 
     async function applyResult(winTeam) {
         if (isWinLocked && isWinLocked()) return;
@@ -659,13 +713,14 @@ function registerEventHandlers() {
 
         if (SYNC_MODE && getRoomIdFromURL()) {
             const ts = Date.now();
-            await writeRoomNow({
-                winEvent: { ts, team: winTeam }
-            });
+            // 내가 보낸 winEvent를 루프백에서 다시 폭죽 안 터뜨리게 마킹
+            if (window.SYNC) window.SYNC.lastEmittedTs = ts;
+            // 스로틀된 publish 경로로 winEvent를 싣는다
+            touchSync({ winEvent: { ts, team: winTeam } });
         }
 
         setLastResultUndo({ snapshot: undoSnapshot }); setUndoEnabled(true); touchSync();
-        setTimeout(() => lockWinButtons(false), 1500);
+        setTimeout(() => lockWinButtons(false), WIN_THROTTLE_MS);
     }
 
     // 되돌리기

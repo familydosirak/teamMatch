@@ -1,5 +1,5 @@
 // src/sync.js
-import { SYNC_MODE } from './config.js';
+import { SYNC_MODE, PUBLISH_MIN_INTERVAL_MS, PUBLISH_MAX_WAIT_MS } from './config.js';
 import { SYNC, setCurrentTeams, setRoster, roster, currentTeams } from './state.js';
 import { normLine } from './state.js';
 import { saveLocal, saveLocalTeams } from './storage.js';
@@ -167,8 +167,8 @@ function applyRemoteState(data) {
 }
 
 const publishState = (() => {
-    const MIN_INTERVAL = 2000;      // 최소 간격(스로틀)
-    const MAX_WAIT = 5000;          // 최대 대기시간: 아무리 바빠도 5초 내엔 1회 flush
+    const MIN_INTERVAL = PUBLISH_MIN_INTERVAL_MS; // 최소 간격(스로틀)
+    const MAX_WAIT = PUBLISH_MAX_WAIT_MS;         // 최대 대기시간
     let timer = null;
     let maxTimer = null;
     let lastSentAt = 0;
@@ -176,6 +176,7 @@ const publishState = (() => {
     let pending = false;
     let lastPayloadHash = null;
     let backoffMs = 0;
+    let pendingExtra = null;
 
     function hash(obj) {
         // 가벼운 해시 (충분히 효과적)
@@ -185,7 +186,7 @@ const publishState = (() => {
         return h;
     }
 
-    async function doWrite(extra = {}) {
+    async function doWrite() {
         if (!SYNC_MODE || !SYNC.enabled || !SYNC.roomId || !canEdit()) return;
         const now = Date.now();
 
@@ -197,11 +198,12 @@ const publishState = (() => {
             ts: now,
             expireAt: new Date(now + 1000 * 60 * 60 * 24 * 7),
             ...packState(),
-            ...extra
+            ...(pendingExtra || {})
         };
         const h = hash(payload);
         if (h === lastPayloadHash) { // 내용 동일 → 쓰기 생략
             pending = false;
+            pendingExtra = null;
             return;
         }
 
@@ -247,9 +249,13 @@ const publishState = (() => {
     window.addEventListener('online', () => { if (pending) flush(); });
 
     // 외부에서 호출되는 publishState()
-    return function () {
+    return function (extra = null) {
         if (!SYNC_MODE || SYNC.applying || !SYNC.enabled || !SYNC.roomId || !canEdit()) return;
         pending = true;
+        if (extra) {
+            // 마지막 extra로 덮어쓰되, 객체 merge로 키 충돌은 최신값 유지
+            pendingExtra = { ...(pendingExtra || {}), ...extra };
+        }
         schedule();
     };
 })();
@@ -268,10 +274,11 @@ export async function writeRoomNow(extra = {}) {
     finally { setTimeout(() => { SYNC.writing = false; }, 40); }
 }
 
-export function touchSync() {
+export function touchSync(extra = null) {
     if (!SYNC_MODE) return;
     if (SYNC.applying) return;
-    publishState();
+    if (extra && extra.winEvent && typeof extra.winEvent.ts === 'number') SYNC.lastEmittedTs = extra.winEvent.ts;
+    publishState(extra);
 }
 
 export function startRoomSync(roomId) {
