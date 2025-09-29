@@ -269,7 +269,7 @@ function maybeCreateShareButton() {
     btn.className = 'btn ghost';
     btn.id = 'btnShareRoom';
     btn.title = '같이 보기 링크 생성';
-    btn.textContent = '방 공유 링크';
+    btn.textContent = '방 공유';
 
     // viewModeBadge 앞에 삽입
     badge.insertAdjacentElement('beforebegin', btn);
@@ -808,7 +808,7 @@ function registerEventHandlers() {
 
 
 
-        try { await navigator.clipboard.writeText(url); alert('공유 링크를 복사했습니다:\n' + url); }
+        try { await navigator.clipboard.writeText(url); alert('링크를 복사했습니다.\n해당 링크를 공유하여 화면을 공유하세요.\n' + url); }
         catch { prompt('이 URL을 복사하세요', url); }
     });
 
