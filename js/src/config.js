@@ -13,7 +13,7 @@ export const APP_CONFIG = {
     WIN_THROTTLE_MS: 2000,          // 쿨다운(퍼블리시와 보통 맞춤)
 };
 
-export const APP_VERSION = '1.0.0';        // 내부 표기(semver)
+export const APP_VERSION = '1.0.1';        // 내부 표기(semver)
 export const DISPLAY_VERSION = '1.0';      // UI에 보이는 짧은 표기(원하면 APP_VERSION에서 파생해도 OK)
 export const SYNC_MODE = !!APP_CONFIG.SYNC_MODE;
 export const PLACEMENT_GAMES = Math.max(0, Math.floor(+APP_CONFIG.PLACEMENT_GAMES || 0));
