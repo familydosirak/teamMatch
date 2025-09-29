@@ -94,7 +94,7 @@ export function persistTeamsLocalIfNeeded() {
     const rid = getRoomIdFromURL();
     // 방이 없으면 로컬에 저장 (SYNC_MODE 여부 무관)
     if (!rid) {
-        try { saveLocalTeams(currentTeams); } catch {}
+        try { saveLocalTeams(currentTeams); } catch { }
     }
 }
 
@@ -167,27 +167,93 @@ function applyRemoteState(data) {
 }
 
 const publishState = (() => {
-    let t = null;
+    const MIN_INTERVAL = 2000;      // 최소 간격(스로틀)
+    const MAX_WAIT = 5000;          // 최대 대기시간: 아무리 바빠도 5초 내엔 1회 flush
+    let timer = null;
+    let maxTimer = null;
+    let lastSentAt = 0;
+    let writing = false;
+    let pending = false;
+    let lastPayloadHash = null;
+    let backoffMs = 0;
+
+    function hash(obj) {
+        // 가벼운 해시 (충분히 효과적)
+        const s = JSON.stringify(obj);
+        let h = 0;
+        for (let i = 0; i < s.length; i++) { h = ((h << 5) - h) + s.charCodeAt(i); h |= 0; }
+        return h;
+    }
+
+    async function doWrite(extra = {}) {
+        if (!SYNC_MODE || !SYNC.enabled || !SYNC.roomId || !canEdit()) return;
+        const now = Date.now();
+
+        // 스로틀: 최소 간격 미만이면 다음 타이밍으로 미룸
+        if (now - lastSentAt < MIN_INTERVAL || writing) { pending = true; schedule(); return; }
+
+        // 상태 패킹 & 동일 데이터 중복 방지
+        const payload = {
+            ts: now,
+            expireAt: new Date(now + 1000 * 60 * 60 * 24 * 7),
+            ...packState(),
+            ...extra
+        };
+        const h = hash(payload);
+        if (h === lastPayloadHash) { // 내용 동일 → 쓰기 생략
+            pending = false;
+            return;
+        }
+
+        // 오프라인/백그라운드 처리: 나중에 묶어서 쓰기
+        if (document.hidden || navigator.onLine === false) {
+            pending = true;
+            schedule(); // 복귀 시 flush
+            return;
+        }
+
+        // 실제 쓰기
+        try {
+            writing = true;
+            const db = window.firebase?.firestore?.(); if (!db) return;
+            await db.collection('rooms').doc(SYNC.roomId).set(payload, { merge: true });
+
+            lastPayloadHash = h;
+            lastSentAt = Date.now();
+            pending = false;
+            backoffMs = 0; // 성공 시 백오프 초기화
+        } catch (e) {
+            console.warn('[SYNC] publish error', e);
+            // 지수 백오프(최대 10초)
+            backoffMs = Math.min(backoffMs ? backoffMs * 2 : 500, 10000);
+            pending = true;
+            setTimeout(schedule, backoffMs);
+        } finally {
+            writing = false;
+        }
+    }
+
+    function flush() { clearTimeout(timer); timer = null; clearTimeout(maxTimer); maxTimer = null; doWrite(); }
+
+    function schedule() {
+        // trailing 디바운스
+        if (!timer) timer = setTimeout(flush, MIN_INTERVAL);
+        // 너무 오래 안 나가면 강제 flush
+        if (!maxTimer) maxTimer = setTimeout(flush, MAX_WAIT);
+    }
+
+    // 가시성/온라인 복귀 시 즉시 flush
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && pending) flush(); });
+    window.addEventListener('online', () => { if (pending) flush(); });
+
+    // 외부에서 호출되는 publishState()
     return function () {
-        if (!SYNC_MODE) return;
-        if (SYNC.applying) return;
-        if (!SYNC.enabled || SYNC.writing || !SYNC.roomId) return;
-        if (!canEdit()) return;
-        clearTimeout(t);
-        t = setTimeout(async () => {
-            try {
-                SYNC.writing = true;
-                const db = window.firebase?.firestore?.(); if (!db) return;
-                await db.collection('rooms').doc(SYNC.roomId).set({
-                    ts: Date.now(),
-                    expireAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
-                    ...packState()
-                }, { merge: true });
-            } catch (e) { console.warn('[SYNC] publish error', e); }
-            finally { setTimeout(() => { SYNC.writing = false; }, 40); }
-        }, 400);
+        if (!SYNC_MODE || SYNC.applying || !SYNC.enabled || !SYNC.roomId || !canEdit()) return;
+        pending = true;
+        schedule();
     };
 })();
+
 
 export async function writeRoomNow(extra = {}) {
     if (!SYNC_MODE) return;
