@@ -15,17 +15,11 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
-    
-    <script>
-        window.APP_CONFIG = { SYNC_MODE: false }; // 동기화 모드 설정
-    </script>
-
 </head>
 
 <body>
     <div class="wrap">
         <span style="font-size:28px; font-weight: bold; padding-right: 10px;">팀 매칭 & 점수 관리</span>
-        <button class="btn ghost" id="btnShareRoom" title="같이 보기 링크 생성">공유 링크</button>
         <span class="muted" id="viewModeBadge" style="white-space:nowrap;"></span>
         <div class="grid">
             <!-- Left: Teams -->
@@ -271,8 +265,8 @@
         </footer>
 
     </div>
-    <script src="./js/firebase.js"></script>
-    <script src="./js/main.js"></script>
+
+    <script type="module" src="./js/main.js" defer></script>
 </body>
 
 </html>
