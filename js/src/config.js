@@ -6,14 +6,14 @@ export const APP_CONFIG = {
 
       // 퍼블리시 스로틀/최대대기
     PUBLISH_MIN_INTERVAL_MS: 1000,  // 기존 MIN_INTERVAL
-    PUBLISH_MAX_WAIT_MS: 5000,      // 기존 MAX_WAIT
+    PUBLISH_MAX_WAIT_MS: 3500,      // 기존 MAX_WAIT
 
     // 승리 버튼 보호 타이밍
     WIN_DEBOUNCE_MS: 220,           // 더블클릭 묶기
     WIN_THROTTLE_MS: 2000,          // 쿨다운(퍼블리시와 보통 맞춤)
 };
 
-export const APP_VERSION = '1.0.1';        // 내부 표기(semver)
+export const APP_VERSION = '1.0.2';        // 내부 표기(semver)
 export const DISPLAY_VERSION = '1.0';      // UI에 보이는 짧은 표기(원하면 APP_VERSION에서 파생해도 OK)
 export const SYNC_MODE = !!APP_CONFIG.SYNC_MODE;
 export const PLACEMENT_GAMES = Math.max(0, Math.floor(+APP_CONFIG.PLACEMENT_GAMES || 0));
