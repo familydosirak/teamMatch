@@ -6,7 +6,7 @@ export const APP_CONFIG = {
 
       // 퍼블리시 스로틀/최대대기
     PUBLISH_MIN_INTERVAL_MS: 1000,  // 기존 MIN_INTERVAL
-    PUBLISH_MAX_WAIT_MS: 3500,      // 기존 MAX_WAIT
+    PUBLISH_MAX_WAIT_MS: 5000,      // 기존 MAX_WAIT
 
     // 승리 버튼 보호 타이밍
     WIN_DEBOUNCE_MS: 220,           // 더블클릭 묶기
