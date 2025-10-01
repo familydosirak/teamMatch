@@ -337,12 +337,43 @@ input[type="file"] {
 }
 
 .rscroll {
-    max-height: 440px;
+    /* 기본 크기 ↑ */
+    min-height: 320px;        /* 기본 높이 늘림 */
+    max-height: 520px;        /* 필요하면 더 늘리거나 기존 440px로 유지해도 OK */
     overflow-y: auto;
     overflow-x: hidden;
     background: transparent;
-    padding: 6px
+    padding: 6px;
+
+    position: relative;       /* 안내문 중앙 배치용 */
 }
+
+/* rosterBody가 비어있을 때 rscroll에 안내 UX */
+.rscroll:has(#rosterBody:empty) {
+    border: 1px dashed rgba(255,255,255,0.15);
+    border-radius: 12px;
+    background-image: linear-gradient(180deg, rgba(77,163,255,.06), transparent);
+}
+
+/* 완전 가운데 정렬된 안내 문구 */
+.rscroll:has(#rosterBody:empty)::before {
+    content: "인원 관리가 비어있습니다.\A 상단 입력으로 추가하거나 파일을 드래그해 불러오세요.";
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+
+    white-space: pre-line;    /* 줄바꿈(\A) 처리 */
+    font-size: 14px;
+    line-height: 1.4;
+    color: var(--muted);
+    opacity: 0.9;
+    padding: 10px 8px;
+    pointer-events: none;     /* 드롭 방해 X */
+}
+
 
 .rbody tbody tr {
     background: #0b1422;
