@@ -531,7 +531,7 @@ function registerEventHandlers() {
 
     // 저장 (TXT)
     els.btnSave.addEventListener('click', () => {
-        const blob = new Blob([JSON.stringify(roster, null, 2)], { type: 'application/json' });
+        const blob = new Blob([JSON.stringify(roster, (k, v) => (k === 'lastDelta' ? undefined : v), 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob); const a = document.createElement('a');
         const now = new Date(); const pad = n => String(n).padStart(2, '0');
         const yy = String(now.getFullYear()).slice(-2), mm = pad(now.getMonth() + 1), dd = pad(now.getDate()), HH = pad(now.getHours()), MM = pad(now.getMinutes());
